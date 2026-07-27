@@ -70,6 +70,12 @@ class OpenDMAReader(BaseReader):
     The reader follows LlamaIndex's reader model: it returns LlamaIndex
     ``Document`` objects and delegates rich content parsing to MIME-type mapped
     ``BaseReader`` instances. Plain text content is decoded directly.
+
+    All returned documents include a ``content_state`` metadata field:
+    - ``Processed``: content was decoded directly or transformed by a file reader
+    - ``Missing``: no content was available and ``include_no_content=True``
+    - ``Unsupported``: no reader accepted the MIME type and
+      ``include_unhandled_content=True``
     """
 
     _TEXT_MIME_TYPES = frozenset(
@@ -117,6 +123,8 @@ class OpenDMAReader(BaseReader):
         file_extractor_per_mimetype: dict[str, BaseReader] | None = None,
         encoding: str = "utf-8",
         errors: str = "ignore",
+        include_no_content: bool = False,
+        include_unhandled_content: bool = False,
         raise_on_error: bool = False,
         metadata_fn: Callable[[Any], dict[str, Any]] | None = None,
     ) -> None:
@@ -136,6 +144,10 @@ class OpenDMAReader(BaseReader):
                 ``BaseReader`` used to parse binary content.
             encoding: Text encoding used for direct text content decoding.
             errors: Text decoding error handling.
+            include_no_content: Include documents without content as empty
+                documents with ``content_state="Missing"``.
+            include_unhandled_content: Include documents with unsupported MIME
+                types as empty documents with ``content_state="Unsupported"``.
             raise_on_error: Whether to raise when a document cannot be loaded.
             metadata_fn: Optional callable for adding custom document metadata.
         """
@@ -161,6 +173,8 @@ class OpenDMAReader(BaseReader):
         }
         self.encoding = encoding
         self.errors = errors
+        self.include_no_content = include_no_content
+        self.include_unhandled_content = include_unhandled_content
         self.raise_on_error = raise_on_error
         self.metadata_fn = metadata_fn
 
@@ -288,6 +302,7 @@ class OpenDMAReader(BaseReader):
 
         for document in documents:
             document.metadata = {**document.metadata, **metadata}
+            document.metadata["content_state"] = "Processed"
             document.id_ = self._document_id(metadata)
         return self._exclude_metadata(documents)
 
@@ -308,10 +323,27 @@ class OpenDMAReader(BaseReader):
         content_bytes: bytes,
         metadata: dict[str, Any],
     ) -> list[Document]:
+        metadata["content_state"] = "Processed"
         text = content_bytes.decode(self.encoding, errors=self.errors)
         return self._exclude_metadata(
             [Document(text=text, metadata=metadata, id_=self._document_id(metadata))]
         )
+
+    def _empty_document(self, metadata: dict[str, Any], content_state: str) -> list[Document]:
+        metadata["content_state"] = content_state
+        return self._exclude_metadata(
+            [Document(text="", metadata=metadata, id_=self._document_id(metadata))]
+        )
+
+    def _missing_content_documents(self, metadata: dict[str, Any]) -> list[Document]:
+        if self.include_no_content:
+            return self._empty_document(metadata, "Missing")
+        return []
+
+    def _unsupported_content_documents(self, metadata: dict[str, Any]) -> list[Document]:
+        if self.include_unhandled_content:
+            return self._empty_document(metadata, "Unsupported")
+        return []
 
     def _transform_document(self, document: Any) -> list[Document]:
         try:
@@ -320,28 +352,48 @@ class OpenDMAReader(BaseReader):
             raise ImportError("opendma-api package not found") from exc
 
         content_element = document.get_primary_content_element()
-        if not isinstance(content_element, OdmaDataContentElement):
-            return []
+        if content_element is None:
+            metadata = self._extract_metadata(document)
+            return self._missing_content_documents(metadata)
 
         mime_type = self._normalize_mime_type(content_element.get_content_type())
         metadata = self._extract_metadata(document, mime_type)
+
+        if not isinstance(content_element, OdmaDataContentElement):
+            if mime_type is None:
+                return self._missing_content_documents(metadata)
+            return self._unsupported_content_documents(metadata)
+
         file_name = content_element.get_file_name()
+
+        if mime_type is None:
+            return self._missing_content_documents(metadata)
+
+        if self._is_text_mime_type(mime_type):
+            content = content_element.get_content()
+            if content is None:
+                return self._missing_content_documents(metadata)
+
+            stream = content.get_stream()
+            if stream is None:
+                return self._missing_content_documents(metadata)
+
+            return self._documents_from_text(stream.read(), metadata)
+
+        if not self._has_file_extractor(mime_type):
+            return self._unsupported_content_documents(metadata)
 
         content = content_element.get_content()
         if content is None:
-            return []
+            return self._missing_content_documents(metadata)
 
         stream = content.get_stream()
         if stream is None:
-            return []
+            return self._missing_content_documents(metadata)
 
         content_bytes = stream.read()
 
-        if mime_type is not None and self._has_file_extractor(mime_type):
-            return self._documents_from_extractor(content_bytes, mime_type, metadata, file_name)
-        if mime_type is not None and self._is_text_mime_type(mime_type):
-            return self._documents_from_text(content_bytes, metadata)
-        return []
+        return self._documents_from_extractor(content_bytes, mime_type, metadata, file_name)
 
     def _iter_opendma_documents(self, session: Any) -> Iterable[Any]:
         yield from self._load_from_document_ids(session)

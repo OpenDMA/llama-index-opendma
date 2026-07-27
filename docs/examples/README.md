@@ -27,3 +27,16 @@ http://localhost:8080/opendma
 
 Loads one document by document ID from the tutorial repository and prints its
 metadata and content.
+
+This is the best first example to run.
+
+### `02_content_states.py`
+
+Shows how `include_no_content=True` and `include_unhandled_content=True` affect
+reader output.
+
+Documents can have these content states:
+
+- `Processed`: content was decoded directly or transformed by a file reader
+- `Missing`: no content was available
+- `Unsupported`: content exists, but no configured reader supports its MIME type

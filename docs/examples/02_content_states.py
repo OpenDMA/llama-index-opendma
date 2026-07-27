@@ -1,5 +1,5 @@
 """
-Basic usage example of OpenDMAReader connecting to the tutorial-xmlrepo.
+Example demonstrating the handling of documents without content and where the content type is not processed.
 
 Run the tutorial REST service docker container:
 ```
@@ -17,7 +17,9 @@ reader = OpenDMAReader(
     username="ignored",
     password="ignored",
     repository_id="sample-repo",
-    document_ids=["hello-world-document"],
+    document_ids=["hello-world-document", "sample-document-a1", "sample-no-content-document"],
+    include_no_content=True,
+    include_unhandled_content=True,
 )
 
 # Load documents
