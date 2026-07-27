@@ -16,9 +16,12 @@ from llama_index.core.schema import Document
 from llama_index.core.utils import get_tqdm_iterable
 
 logger = logging.getLogger(__name__)
+_missing_readers_file_warning_emitted = False
 
 
 def _try_loading_included_mimetype_formats() -> dict[str, type[BaseReader]]:  # pragma: no cover
+    global _missing_readers_file_warning_emitted
+
     try:
         from llama_index.readers.file import (
             DocxReader,
@@ -34,10 +37,12 @@ def _try_loading_included_mimetype_formats() -> dict[str, type[BaseReader]]:  # 
             VideoAudioReader,
         )  # pants: no-infer-dep
     except ImportError:
-        logger.warning(
-            "`llama-index-readers-file` package not found, some file readers will not be "
-            "available if not provided by the `file_extractor_per_mimetype` parameter."
-        )
+        if not _missing_readers_file_warning_emitted:
+            logger.warning(
+                "`llama-index-readers-file` package not found, some file readers will not be "
+                "available if not provided by the `file_extractor_per_mimetype` parameter."
+            )
+            _missing_readers_file_warning_emitted = True
         return {}
 
     return {
@@ -171,6 +176,7 @@ class OpenDMAReader(BaseReader):
             self._normalize_mime_type(mime_type): reader
             for mime_type, reader in (file_extractor_per_mimetype or {}).items()
         }
+        self._default_file_extractor_cls_per_mimetype: dict[str, type[BaseReader]] | None = None
         self.encoding = encoding
         self.errors = errors
         self.include_no_content = include_no_content
@@ -308,14 +314,19 @@ class OpenDMAReader(BaseReader):
 
     def _get_file_extractor(self, mime_type: str) -> BaseReader:
         if mime_type not in self.file_extractor_per_mimetype:
-            reader_cls = self.supported_mimetype_fn()[mime_type]
+            reader_cls = self._get_default_file_extractor_cls_per_mimetype()[mime_type]
             self.file_extractor_per_mimetype[mime_type] = reader_cls()
         return self.file_extractor_per_mimetype[mime_type]
+
+    def _get_default_file_extractor_cls_per_mimetype(self) -> dict[str, type[BaseReader]]:
+        if self._default_file_extractor_cls_per_mimetype is None:
+            self._default_file_extractor_cls_per_mimetype = self.supported_mimetype_fn()
+        return self._default_file_extractor_cls_per_mimetype
 
     def _has_file_extractor(self, mime_type: str) -> bool:
         return (
             mime_type in self.file_extractor_per_mimetype
-            or mime_type in self.supported_mimetype_fn()
+            or mime_type in self._get_default_file_extractor_cls_per_mimetype()
         )
 
     def _documents_from_text(
