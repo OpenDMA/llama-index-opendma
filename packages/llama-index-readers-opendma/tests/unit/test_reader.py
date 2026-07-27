@@ -21,7 +21,12 @@ class BinaryReader(BaseReader):
         return [
             Document(
                 text=file.read_bytes().decode("utf-8"),
-                metadata={"reader": "binary", **(extra_info or {})},
+                metadata={
+                    "reader": "binary",
+                    "file_name": file.name,
+                    "file_size": file.stat().st_size,
+                    **(extra_info or {}),
+                },
             )
         ]
 
@@ -150,3 +155,24 @@ class TestOpenDMAReader:
         extractor = reader._get_file_extractor("application/pdf")
 
         assert extractor is user_extractor
+
+    def test_documents_from_extractor_drops_file_metadata(self) -> None:
+        reader = OpenDMAReader(
+            endpoint="http://localhost:8080/opendma",
+            username="admin",
+            password="admin",
+            repository_id="sample-repo",
+            document_ids=["document"],
+            file_extractor_per_mimetype={"application/pdf": BinaryReader()},
+        )
+
+        documents = reader._documents_from_extractor(
+            b"binary text",
+            "application/pdf",
+            {"repository_id": "sample-repo", "opendma_id": "document"},
+            "document.pdf",
+        )
+
+        assert documents[0].metadata["reader"] == "binary"
+        assert "file_name" not in documents[0].metadata
+        assert "file_size" not in documents[0].metadata

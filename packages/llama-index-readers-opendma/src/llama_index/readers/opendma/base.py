@@ -109,6 +109,7 @@ class OpenDMAReader(BaseReader):
         "opendma_class",
         "mime_type",
     ]
+    _DROPPED_EXTRACTOR_METADATA_KEYS = {"file_name", "file_size"}
 
     supported_mimetype_fn: Callable[[], dict[str, type[BaseReader]]] = staticmethod(
         _try_loading_included_mimetype_formats
@@ -308,6 +309,8 @@ class OpenDMAReader(BaseReader):
 
         for document in documents:
             document.metadata = {**document.metadata, **metadata}
+            for key in self._DROPPED_EXTRACTOR_METADATA_KEYS:
+                document.metadata.pop(key, None)
             document.metadata["content_state"] = "Processed"
             document.id_ = self._document_id(metadata)
         return self._exclude_metadata(documents)
