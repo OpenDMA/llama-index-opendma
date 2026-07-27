@@ -40,3 +40,18 @@ Documents can have these content states:
 - `Processed`: content was decoded directly or transformed by a file reader
 - `Missing`: no content was available
 - `Unsupported`: content exists, but no configured reader supports its MIME type
+
+### `03_folders.py`
+
+Loads documents directly contained in a folder.
+
+This example uses `folder_ids` and does not recurse into subfolders.
+
+### `04_folders_recurse.py`
+
+Compares non-recursive and recursive folder loading.
+
+It runs the reader twice:
+
+- once with `recursive=False`
+- once with `recursive=True`
