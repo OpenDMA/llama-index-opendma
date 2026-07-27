@@ -55,3 +55,14 @@ It runs the reader twice:
 
 - once with `recursive=False`
 - once with `recursive=True`
+
+### `05_pdf.py`
+
+Loads a PDF document and lets LlamaIndex's optional file readers package parse
+the binary content.
+
+Run it with the optional dependency available:
+
+```bash
+uv run --with llama-index-readers-file --package llama-index-readers-opendma python docs/examples/05_pdf.py
+```
