@@ -15,13 +15,13 @@ from llama_index.core.schema import (
     TextNode,
     TransformComponent,
 )
-from llama_index.retrievers.opendma import OpenDMARetriever
+from llama_index.retrievers.opendma import AlfrescoRetriever, OpenDMARetriever
 
 
 class RecordingReader:
     """Reader test double that records document consumption."""
 
-    def __init__(self, retriever: RecordingOpenDMARetriever) -> None:
+    def __init__(self, retriever: Any) -> None:
         self.retriever = retriever
 
     def lazy_load_data(self) -> Iterable[Document]:
@@ -39,6 +39,24 @@ class RecordingReader:
 
 class RecordingOpenDMARetriever(OpenDMARetriever):
     """Retriever test double that records the query passed to reader creation."""
+
+    created_query: str | None
+    document_count: int
+    yielded_documents: int
+
+    def __init__(self, *args: Any, document_count: int = 1, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.created_query = None
+        self.document_count = document_count
+        self.yielded_documents = 0
+
+    def _create_reader(self, query: str) -> RecordingReader:  # type: ignore[override]
+        self.created_query = query
+        return RecordingReader(self)
+
+
+class RecordingAlfrescoRetriever(AlfrescoRetriever):
+    """Alfresco retriever test double that records the generated AFTS query."""
 
     created_query: str | None
     document_count: int
@@ -196,3 +214,104 @@ class TestOpenDMARetriever:
 
         assert isinstance(nodes[0], NodeWithScore)
         assert nodes[0].score is None
+
+
+class TestAlfrescoRetriever:
+    """Test cases for AlfrescoRetriever."""
+
+    def test_retrieve_builds_afts_full_text_query(self) -> None:
+        retriever = RecordingAlfrescoRetriever(
+            endpoint="http://localhost:7070/opendma/alf",
+            username="admin",
+            password="admin",
+            transformations=[],
+        )
+
+        retriever.retrieve("website design")
+
+        assert retriever.repository_id == "Alfresco"
+        assert retriever.query_language == "alfresco:afts"
+        assert retriever.created_query == 'TEXT:"website design"'
+
+    def test_retrieve_respects_inherited_similarity_top_k(self) -> None:
+        retriever = RecordingAlfrescoRetriever(
+            endpoint="http://localhost:7070/opendma/alf",
+            username="admin",
+            password="admin",
+            transformations=[],
+            similarity_top_k=1,
+            document_count=3,
+        )
+
+        nodes = retriever.retrieve("website design")
+
+        assert node_texts(nodes) == ["result 0"]
+        assert retriever.yielded_documents == 1
+
+    def test_retrieve_escapes_afts_phrase(self) -> None:
+        retriever = RecordingAlfrescoRetriever(
+            endpoint="http://localhost:7070/opendma/alf",
+            username="admin",
+            password="admin",
+            transformations=[],
+        )
+
+        retriever.retrieve(r'website "design" \ localisation')
+
+        assert retriever.created_query == r'TEXT:"website \"design\" \\ localisation"'
+
+    def test_retrieve_adds_site_filter(self) -> None:
+        retriever = RecordingAlfrescoRetriever(
+            endpoint="http://localhost:7070/opendma/alf",
+            username="admin",
+            password="admin",
+            transformations=[],
+            sites=["swsdp", "engineering"],
+        )
+
+        retriever.retrieve("website design")
+
+        assert retriever.created_query == (
+            'TEXT:"website design" AND (SITE:"swsdp" OR SITE:"engineering")'
+        )
+
+    def test_retrieve_rejects_empty_query(self) -> None:
+        retriever = RecordingAlfrescoRetriever(
+            endpoint="http://localhost:7070/opendma/alf",
+            username="admin",
+            password="admin",
+            transformations=[],
+        )
+
+        with pytest.raises(ValueError, match="query must not be empty"):
+            retriever.retrieve("  \n\t  ")
+
+    @pytest.mark.parametrize("character", ['"', "*", "\\", ">", "<", "?", "/", ":", "|"])
+    def test_init_rejects_site_names_with_forbidden_characters(self, character: str) -> None:
+        with pytest.raises(ValueError, match="Alfresco site names cannot contain"):
+            RecordingAlfrescoRetriever(
+                endpoint="http://localhost:7070/opendma/alf",
+                username="admin",
+                password="admin",
+                sites=[f"site{character}name"],
+            )
+
+    @pytest.mark.parametrize(
+        ("site_name", "message"),
+        [
+            ("site.", "end with a period"),
+            ("site ", "end with a space"),
+        ],
+    )
+    def test_init_rejects_site_names_with_invalid_endings(
+        self,
+        site_name: str,
+        message: str,
+    ) -> None:
+        with pytest.raises(ValueError, match=message):
+            RecordingAlfrescoRetriever(
+                endpoint="http://localhost:7070/opendma/alf",
+                username="admin",
+                password="admin",
+                sites=[site_name],
+            )

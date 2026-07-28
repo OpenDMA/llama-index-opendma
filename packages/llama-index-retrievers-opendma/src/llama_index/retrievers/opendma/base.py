@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from llama_index.core import Settings
@@ -10,7 +11,7 @@ from llama_index.core.callbacks import CallbackManager
 from llama_index.core.ingestion import arun_transformations, run_transformations
 from llama_index.core.readers.base import BaseReader
 from llama_index.core.schema import BaseNode, NodeWithScore, QueryBundle, TransformComponent
-from llama_index.readers.opendma import OpenDMAReader
+from llama_index.readers.opendma import AlfrescoReader, OpenDMAReader
 
 
 class OpenDMARetriever(BaseRetriever):
@@ -139,3 +140,72 @@ class OpenDMARetriever(BaseRetriever):
                 ):
                     return nodes_with_score
         return nodes_with_score
+
+
+class AlfrescoRetriever(OpenDMARetriever):
+    """Retrieve LlamaIndex nodes from Alfresco via OpenDMA AFTS full-text search.
+
+    The input string is converted into a safe Alfresco AFTS ``TEXT`` query. When
+    ``sites`` is set, retrieval is restricted to the matching Alfresco site
+    short names.
+    """
+
+    def __init__(
+        self,
+        endpoint: str,
+        username: str,
+        password: str,
+        repository_id: str = "Alfresco",
+        query_language: str = "alfresco:afts",
+        sites: list[str] | None = None,
+        file_extractor_per_mimetype: dict[str, BaseReader] | None = None,
+        transformations: list[TransformComponent] | None = None,
+        similarity_top_k: int | None = None,
+        include_no_content: bool = False,
+        include_unhandled_content: bool = False,
+        raise_on_error: bool = False,
+        metadata_fn: Any | None = None,
+        callback_manager: CallbackManager | None = None,
+        object_map: dict[Any, Any] | None = None,
+        objects: list[Any] | None = None,
+        verbose: bool = False,
+    ) -> None:
+        """Initialize the Alfresco retriever."""
+        if sites is not None:
+            for site in sites:
+                AlfrescoReader._validate_site_name(site)
+
+        super().__init__(
+            endpoint=endpoint,
+            username=username,
+            password=password,
+            repository_id=repository_id,
+            query_language=query_language,
+            file_extractor_per_mimetype=file_extractor_per_mimetype,
+            transformations=transformations,
+            similarity_top_k=similarity_top_k,
+            include_no_content=include_no_content,
+            include_unhandled_content=include_unhandled_content,
+            raise_on_error=raise_on_error,
+            metadata_fn=metadata_fn,
+            callback_manager=callback_manager,
+            object_map=object_map,
+            objects=objects,
+            verbose=verbose,
+        )
+        self.sites = sites
+
+    def _build_query(self, query: str) -> str:
+        normalized_query = re.sub(r"\s+", " ", query).strip()
+        if not normalized_query:
+            raise ValueError("query must not be empty")
+
+        afts_query = f'TEXT:"{self._escape_afts_phrase(normalized_query)}"'
+        if self.sites:
+            site_filters = [f'SITE:"{site}"' for site in self.sites]
+            afts_query += " AND (" + " OR ".join(site_filters) + ")"
+
+        return afts_query
+
+    def _escape_afts_phrase(self, value: str) -> str:
+        return value.replace("\\", "\\\\").replace('"', '\\"')

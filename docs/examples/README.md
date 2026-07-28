@@ -159,3 +159,19 @@ Looking at the `alfresco:Path` you can see that it includes information from the
 and Links as well, not just files from the Document Library.  
 Depending on the size, each extracted file is split into multiple LlamaIndex Documents
 using LlamaIndex's file readers package.
+
+### `12_alfresco_retriever.py`
+
+Performs a full-text search in the Alfresco "Sample: Web Site Design Project"
+site (`swsdp`) with `AlfrescoRetriever`. Processes binary formats such as PDF or
+Office files with LlamaIndex's optional file readers package. To read the legacy
+Word format (.doc), it additionally requires the Docling readers.
+
+Run it with:
+
+```bash
+uv run --with llama-index-readers-file --with llama-index-readers-docling --package llama-index-retrievers-opendma python docs/examples/12_alfresco_retriever.py
+```
+
+The retriever returns LlamaIndex `NodeWithScore` objects after document loading
+and node parsing.
