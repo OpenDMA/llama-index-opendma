@@ -52,17 +52,23 @@ follow_imports = "normal"
 ignore_missing_imports = true
 namespace_packages = true
 explicit_package_bases = true
-mypy_path = "packages/llama-index-readers-opendma/src"
+mypy_path = "packages/llama-index-readers-opendma/src;packages/llama-index-retrievers-opendma/src"
 
 [tool.pytest.ini_options]
-testpaths = ["packages/llama-index-readers-opendma/tests"]
-addopts = "--cov=llama_index.readers.opendma --cov-report=term-missing"
+testpaths = [
+    "packages/llama-index-readers-opendma/tests",
+    "packages/llama-index-retrievers-opendma/tests",
+]
+addopts = "--cov=llama_index.readers.opendma --cov=llama_index.retrievers.opendma --cov-report=term-missing"
 markers = [
     "integration: tests requiring an external OpenDMA tutorial repository",
 ]
 
 [tool.coverage.run]
-source = ["packages/llama-index-readers-opendma/src/llama_index/readers/opendma"]
+source = [
+    "packages/llama-index-readers-opendma/src/llama_index/readers/opendma",
+    "packages/llama-index-retrievers-opendma/src/llama_index/retrievers/opendma",
+]
 omit = ["tests/*", "**/__pycache__/*"]
 
 [tool.coverage.report]

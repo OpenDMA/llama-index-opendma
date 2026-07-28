@@ -12,6 +12,7 @@ resolution-markers = [
 members = [
     "llama-index-opendma-workspace",
     "llama-index-readers-opendma",
+    "llama-index-retrievers-opendma",
 ]
 
 [[package]]
@@ -1072,6 +1073,21 @@ requires-dist = [
     { name = "llama-index-core", specifier = ">=0.14.0,<0.15.0" },
     { name = "opendma-api", specifier = ">=0.8.0" },
     { name = "opendma-remote", specifier = ">=0.8.0" },
+]
+
+[[package]]
+name = "llama-index-retrievers-opendma"
+version = "0.1.0.dev1"
+source = { editable = "packages/llama-index-retrievers-opendma" }
+dependencies = [
+    { name = "llama-index-core" },
+    { name = "llama-index-readers-opendma" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "llama-index-core", specifier = ">=0.14.0,<0.15.0" },
+    { name = "llama-index-readers-opendma", editable = "packages/llama-index-readers-opendma" },
 ]
 
 [[package]]
