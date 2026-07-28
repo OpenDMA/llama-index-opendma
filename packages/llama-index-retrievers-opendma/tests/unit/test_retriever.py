@@ -15,7 +15,13 @@ from llama_index.core.schema import (
     TextNode,
     TransformComponent,
 )
-from llama_index.retrievers.opendma import AlfrescoRetriever, OpenDMARetriever
+from llama_index.retrievers.opendma import (
+    AlfrescoRetriever,
+    DocumentumRetriever,
+    FileNetP8Retriever,
+    OnBaseRetriever,
+    OpenDMARetriever,
+)
 
 
 class RecordingReader:
@@ -57,6 +63,60 @@ class RecordingOpenDMARetriever(OpenDMARetriever):
 
 class RecordingAlfrescoRetriever(AlfrescoRetriever):
     """Alfresco retriever test double that records the generated AFTS query."""
+
+    created_query: str | None
+    document_count: int
+    yielded_documents: int
+
+    def __init__(self, *args: Any, document_count: int = 1, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.created_query = None
+        self.document_count = document_count
+        self.yielded_documents = 0
+
+    def _create_reader(self, query: str) -> RecordingReader:  # type: ignore[override]
+        self.created_query = query
+        return RecordingReader(self)
+
+
+class RecordingFileNetP8Retriever(FileNetP8Retriever):
+    """FileNet P8 retriever test double that records the generated SQL query."""
+
+    created_query: str | None
+    document_count: int
+    yielded_documents: int
+
+    def __init__(self, *args: Any, document_count: int = 1, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.created_query = None
+        self.document_count = document_count
+        self.yielded_documents = 0
+
+    def _create_reader(self, query: str) -> RecordingReader:  # type: ignore[override]
+        self.created_query = query
+        return RecordingReader(self)
+
+
+class RecordingDocumentumRetriever(DocumentumRetriever):
+    """Documentum retriever test double that records the generated DQL query."""
+
+    created_query: str | None
+    document_count: int
+    yielded_documents: int
+
+    def __init__(self, *args: Any, document_count: int = 1, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.created_query = None
+        self.document_count = document_count
+        self.yielded_documents = 0
+
+    def _create_reader(self, query: str) -> RecordingReader:  # type: ignore[override]
+        self.created_query = query
+        return RecordingReader(self)
+
+
+class RecordingOnBaseRetriever(OnBaseRetriever):
+    """OnBase retriever test double that records the generated XML query."""
 
     created_query: str | None
     document_count: int
@@ -315,3 +375,149 @@ class TestAlfrescoRetriever:
                 password="admin",
                 sites=[site_name],
             )
+
+
+class TestFileNetP8Retriever:
+    """Test cases for FileNetP8Retriever."""
+
+    def test_retrieve_builds_content_search_query(self) -> None:
+        retriever = RecordingFileNetP8Retriever(
+            endpoint="http://localhost:8080/opendma/filenet",
+            username="admin",
+            password="admin",
+            repository_id="FileNetP8",
+            transformations=[],
+        )
+
+        retriever.retrieve("foo bar")
+
+        assert retriever.query_language == "filenetp8:sql"
+        assert retriever.created_query == (
+            "SELECT d.This FROM Document d "
+            "INNER JOIN ContentSearch cs ON d.This = cs.QueriedObject "
+            "WHERE CONTAINS(d.*, 'foo OR bar')"
+        )
+
+    def test_retrieve_escapes_content_query_and_sql_literal(self) -> None:
+        retriever = RecordingFileNetP8Retriever(
+            endpoint="http://localhost:8080/opendma/filenet",
+            username="admin",
+            password="admin",
+            repository_id="FileNetP8",
+            transformations=[],
+        )
+
+        retriever.retrieve("owner's name?")
+
+        assert retriever.created_query == (
+            "SELECT d.This FROM Document d "
+            "INNER JOIN ContentSearch cs ON d.This = cs.QueriedObject "
+            "WHERE CONTAINS(d.*, 'owner''s OR name\\?')"
+        )
+
+    def test_retrieve_rejects_empty_query(self) -> None:
+        retriever = RecordingFileNetP8Retriever(
+            endpoint="http://localhost:8080/opendma/filenet",
+            username="admin",
+            password="admin",
+            repository_id="FileNetP8",
+            transformations=[],
+        )
+
+        with pytest.raises(ValueError, match="query must not be empty"):
+            retriever.retrieve("  \n\t  ")
+
+
+class TestDocumentumRetriever:
+    """Test cases for DocumentumRetriever."""
+
+    def test_retrieve_builds_dql_full_text_query(self) -> None:
+        retriever = RecordingDocumentumRetriever(
+            endpoint="http://localhost:8080/opendma/documentum",
+            username="admin",
+            password="admin",
+            repository_id="Documentum",
+            transformations=[],
+        )
+
+        retriever.retrieve("foo bar")
+
+        assert retriever.query_language == "dctm:dql"
+        assert retriever.created_query == (
+            "SELECT * FROM dm_document SEARCH DOCUMENT CONTAINS 'foo' OR 'bar'"
+        )
+
+    def test_retrieve_escapes_dql_string_literals(self) -> None:
+        retriever = RecordingDocumentumRetriever(
+            endpoint="http://localhost:8080/opendma/documentum",
+            username="admin",
+            password="admin",
+            repository_id="Documentum",
+            transformations=[],
+        )
+
+        retriever.retrieve("owner's name")
+
+        assert retriever.created_query == (
+            "SELECT * FROM dm_document SEARCH DOCUMENT CONTAINS 'owner''s' OR 'name'"
+        )
+
+    def test_retrieve_rejects_empty_query(self) -> None:
+        retriever = RecordingDocumentumRetriever(
+            endpoint="http://localhost:8080/opendma/documentum",
+            username="admin",
+            password="admin",
+            repository_id="Documentum",
+            transformations=[],
+        )
+
+        with pytest.raises(ValueError, match="query must not be empty"):
+            retriever.retrieve("  \n\t  ")
+
+
+class TestOnBaseRetriever:
+    """Test cases for OnBaseRetriever."""
+
+    def test_retrieve_builds_document_query_xml(self) -> None:
+        retriever = RecordingOnBaseRetriever(
+            endpoint="http://localhost:8080/opendma/onbase",
+            username="admin",
+            password="admin",
+            repository_id="OnBase",
+            transformations=[],
+        )
+
+        retriever.retrieve("foo bar")
+
+        assert retriever.query_language == "onbase:DocumentQuery"
+        assert "<FullTextSearchString>foo OR bar</FullTextSearchString>" in (
+            retriever.created_query or ""
+        )
+        assert "<TextSearchType>2</TextSearchType>" in (retriever.created_query or "")
+
+    def test_retrieve_xml_escapes_full_text_search_string(self) -> None:
+        retriever = RecordingOnBaseRetriever(
+            endpoint="http://localhost:8080/opendma/onbase",
+            username="admin",
+            password="admin",
+            repository_id="OnBase",
+            transformations=[],
+        )
+
+        retriever.retrieve("<test foo bar")
+
+        assert "<FullTextSearchString>&lt;test OR foo OR bar</FullTextSearchString>" in (
+            retriever.created_query or ""
+        )
+
+    def test_retrieve_rejects_empty_query(self) -> None:
+        retriever = RecordingOnBaseRetriever(
+            endpoint="http://localhost:8080/opendma/onbase",
+            username="admin",
+            password="admin",
+            repository_id="OnBase",
+            transformations=[],
+        )
+
+        with pytest.raises(ValueError, match="query must not be empty"):
+            retriever.retrieve("  \n\t  ")
