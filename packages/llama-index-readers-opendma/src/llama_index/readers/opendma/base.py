@@ -133,6 +133,7 @@ class OpenDMAReader(BaseReader):
         include_unhandled_content: bool = False,
         raise_on_error: bool = False,
         metadata_fn: Callable[[Any], dict[str, Any]] | None = None,
+        _allow_no_source: bool = False,
     ) -> None:
         """Initialize the OpenDMA reader.
 
@@ -159,7 +160,7 @@ class OpenDMAReader(BaseReader):
         """
         super().__init__()
 
-        if not document_ids and not folder_ids and not query:
+        if not _allow_no_source and not document_ids and not folder_ids and not query:
             raise ValueError("Must provide at least one of document_ids, folder_ids, or query.")
         if query and not query_language:
             raise ValueError("query_language must be specified when query is provided.")
@@ -413,6 +414,11 @@ class OpenDMAReader(BaseReader):
         yield from self._load_from_document_ids(session)
         yield from self._load_from_folder_ids(session)
         yield from self._load_from_query(session)
+        yield from self._load_extra_objects(session)
+
+    def _load_extra_objects(self, session: Any) -> Iterable[Any]:  # noqa: ARG002
+        """Load additional OpenDMA objects for subclasses."""
+        return ()
 
     def _load_from_document_ids(self, session: Any) -> Generator[Any, None, None]:
         if not self.document_ids:
@@ -544,3 +550,134 @@ class OpenDMAReader(BaseReader):
                     yield documents
         finally:
             session.close()
+
+
+class AlfrescoReader(OpenDMAReader):
+    """Load documents from Alfresco repositories via OpenDMA.
+
+    This reader adds Alfresco-specific defaults and site loading convenience on
+    top of ``OpenDMAReader``.
+    """
+
+    _INVALID_SITE_NAME_CHARACTERS = frozenset('"*\\><?/:|')
+
+    def __init__(
+        self,
+        endpoint: str,
+        username: str,
+        password: str,
+        repository_id: str = "Alfresco",
+        document_ids: list[str] | None = None,
+        folder_ids: list[str] | None = None,
+        recursive: bool = False,
+        query: str | None = None,
+        query_language: str | None = "alfresco:afts",
+        sites: list[str] | None = None,
+        file_extractor_per_mimetype: dict[str, BaseReader] | None = None,
+        encoding: str = "utf-8",
+        errors: str = "ignore",
+        include_no_content: bool = False,
+        include_unhandled_content: bool = False,
+        raise_on_error: bool = False,
+        metadata_fn: Callable[[Any], dict[str, Any]] | None = None,
+    ) -> None:
+        """Initialize the Alfresco reader.
+
+        Args:
+            endpoint: OpenDMA REST service endpoint.
+            username: Username for authentication.
+            password: Password for authentication.
+            repository_id: OpenDMA repository ID. Defaults to ``"Alfresco"``.
+            document_ids: Optional document IDs to load.
+            folder_ids: Optional folder IDs to load documents from.
+            recursive: Whether folder loading should include subfolders.
+            query: Optional Alfresco query.
+            query_language: Query language for ``query``. Defaults to
+                ``"alfresco:afts"``.
+            sites: Optional Alfresco site short names. When set, all documents
+                below matching site folders are loaded recursively.
+            file_extractor_per_mimetype: Mapping from MIME type to LlamaIndex
+                ``BaseReader`` used to parse binary content.
+            encoding: Text encoding used for direct text content decoding.
+            errors: Text decoding error handling.
+            include_no_content: Include documents without content as empty
+                documents with ``content_state="Missing"``.
+            include_unhandled_content: Include documents with unsupported MIME
+                types as empty documents with ``content_state="Unsupported"``.
+            raise_on_error: Whether to raise when a document cannot be loaded.
+            metadata_fn: Optional callable for adding custom document metadata.
+        """
+        if sites is not None:
+            for site in sites:
+                self._validate_site_name(site)
+
+        if not document_ids and not folder_ids and not query and not sites:
+            raise ValueError(
+                "Must provide at least one of document_ids, folder_ids, query, or sites."
+            )
+
+        super().__init__(
+            endpoint=endpoint,
+            username=username,
+            password=password,
+            repository_id=repository_id,
+            document_ids=document_ids,
+            folder_ids=folder_ids,
+            recursive=recursive,
+            query=query,
+            query_language=query_language,
+            file_extractor_per_mimetype=file_extractor_per_mimetype,
+            encoding=encoding,
+            errors=errors,
+            include_no_content=include_no_content,
+            include_unhandled_content=include_unhandled_content,
+            raise_on_error=raise_on_error,
+            metadata_fn=metadata_fn,
+            _allow_no_source=bool(sites),
+        )
+        self.sites = sites
+
+    @classmethod
+    def _validate_site_name(cls, site: str) -> None:
+        if any(character in site for character in cls._INVALID_SITE_NAME_CHARACTERS):
+            raise ValueError(
+                "Alfresco site names cannot contain any of these characters: "
+                r'" * \ > < ? / : |'
+            )
+        if site.endswith("."):
+            raise ValueError("Alfresco site names cannot end with a period")
+        if site.endswith(" "):
+            raise ValueError("Alfresco site names cannot end with a space")
+
+    def _load_extra_objects(self, session: Any) -> Generator[Any, None, None]:
+        """Load documents recursively from configured Alfresco sites."""
+        if not self.sites:
+            return
+
+        try:
+            from opendma.api import OdmaDocument, OdmaFolder, OdmaId, OdmaQName
+        except ImportError as exc:
+            raise ImportError("opendma-api package not found") from exc
+
+        query_parts = [f'=cm:name:"{site}"' for site in self.sites]
+        afts_query = 'TYPE:"st:site" AND (' + " OR ".join(query_parts) + ")"
+
+        repo_id = OdmaId(self.repository_id)
+        query_language = OdmaQName.from_string("alfresco:afts")
+        try:
+            search_result = session.search(repo_id, query_language, afts_query)
+        except Exception as exc:
+            self._handle_error("Failed to resolve Alfresco sites", exc)
+            return
+
+        for site in search_result.get_objects():
+            if not isinstance(site, OdmaFolder):
+                continue
+            for subfolder in site.get_sub_folders():
+                folders_to_process = [subfolder]
+                while folders_to_process:
+                    current_folder = folders_to_process.pop()
+                    for containee in current_folder.get_containees():
+                        if isinstance(containee, OdmaDocument):
+                            yield containee
+                    folders_to_process.extend(current_folder.get_sub_folders())

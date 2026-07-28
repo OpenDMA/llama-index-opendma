@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from llama_index.core.readers.base import BaseReader
 from llama_index.core.schema import Document
-from llama_index.readers.opendma import OpenDMAReader
+from llama_index.readers.opendma import AlfrescoReader, OpenDMAReader
 
 
 class BinaryReader(BaseReader):
@@ -176,3 +176,57 @@ class TestOpenDMAReader:
         assert documents[0].metadata["reader"] == "binary"
         assert "file_name" not in documents[0].metadata
         assert "file_size" not in documents[0].metadata
+
+
+class TestAlfrescoReader:
+    """Test cases for pure AlfrescoReader behavior."""
+
+    def test_init_accepts_valid_site_names(self) -> None:
+        reader = AlfrescoReader(
+            endpoint="http://localhost:7070/opendma/alf",
+            username="admin",
+            password="admin",
+            sites=["swsdp", "engineering-site"],
+        )
+
+        assert reader.repository_id == "Alfresco"
+        assert reader.query_language == "alfresco:afts"
+        assert reader.sites == ["swsdp", "engineering-site"]
+
+    def test_init_requires_source_selector(self) -> None:
+        with pytest.raises(ValueError, match="Must provide at least one"):
+            AlfrescoReader(
+                endpoint="http://localhost:7070/opendma/alf",
+                username="admin",
+                password="admin",
+            )
+
+    @pytest.mark.parametrize("character", ['"', "*", "\\", ">", "<", "?", "/", ":", "|"])
+    def test_init_rejects_site_names_with_forbidden_characters(self, character: str) -> None:
+        with pytest.raises(ValueError, match="Alfresco site names cannot contain"):
+            AlfrescoReader(
+                endpoint="http://localhost:7070/opendma/alf",
+                username="admin",
+                password="admin",
+                sites=[f"site{character}name"],
+            )
+
+    @pytest.mark.parametrize(
+        ("site_name", "message"),
+        [
+            ("site.", "end with a period"),
+            ("site ", "end with a space"),
+        ],
+    )
+    def test_init_rejects_site_names_with_invalid_endings(
+        self,
+        site_name: str,
+        message: str,
+    ) -> None:
+        with pytest.raises(ValueError, match=message):
+            AlfrescoReader(
+                endpoint="http://localhost:7070/opendma/alf",
+                username="admin",
+                password="admin",
+                sites=[site_name],
+            )
