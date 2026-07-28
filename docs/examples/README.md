@@ -146,12 +146,13 @@ in a web browser and authenticate with your Alfresco credentials (`admin/admin` 
 
 Reads all files from the Alfresco "Sample: Web Site Design Project" site
 (`swsdp`) with `AlfrescoReader`. Processes binary formats such as PDF or
-Office files with LlamaIndex's optional file readers package.
+Office files with LlamaIndex's optional file readers package. To read the
+legacy Word format (.doc), it additionally requires the Docling readers.
 
 Run it with:
 
 ```bash
-uv run --with llama-index-readers-file --package llama-index-readers-opendma python docs/examples/11_alfresco_reader.py
+uv run --with llama-index-readers-file  --with llama-index-readers-docling --package llama-index-readers-opendma python docs/examples/11_alfresco_reader.py
 ```
 
 Looking at the `alfresco:Path` you can see that it includes information from the Wiki
