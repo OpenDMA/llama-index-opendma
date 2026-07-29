@@ -30,8 +30,7 @@ You can adjust the port if `8080` is already in use.
 
 ## Install Dependencies
 
-Install LlamaIndex, the OpenDMA readers, and the optional file readers
-(included in llama-index package):
+Install LlamaIndex, File Readers, and the OpenDMA readers:
 
 ```bash
 pip install llama-index llama-index-readers-opendma llama-index-readers-file
@@ -176,3 +175,12 @@ as a string. Each object can be uniquely identified within its context by this u
 
 This is the basic RAG flow: documents are retrieved from the vector store, and
 the model generates an answer from the retrieved context.
+
+## Next
+
+In the next tutorial, [Metadata-Aware Retrieval](./02_metadata_aware_retrieval.md), we ingest
+data from a real ECM system: Alfresco.
+
+We observe how the quality of the RAG degrades after ingesting more information into
+the knowledge base. Additional information about the documents is used to guide retrieval and
+increase precision and recall.
