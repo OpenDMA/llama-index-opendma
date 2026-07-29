@@ -28,7 +28,6 @@ This repository is a uv workspace containing multiple publishable packages:
 
 - `packages/llama-index-readers-opendma`: reader integration
 - `packages/llama-index-retrievers-opendma`: retriever integration
-- `packages/llama-index-tools-opendma`: planned tool integration
 
 ## Common Commands
 
