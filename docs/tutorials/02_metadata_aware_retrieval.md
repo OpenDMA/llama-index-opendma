@@ -103,7 +103,7 @@ import getpass
 import os
 
 if not os.environ.get("OPENAI_API_KEY"):
-  os.environ["OPENAI_API_KEY"] = getpass.getpass("Enter API key for OpenAI: ")
+    os.environ["OPENAI_API_KEY"] = getpass.getpass("Enter API key for OpenAI: ")
 ```
 
 In this tutorial, we use a specialised version of the OpenDMAReader which
@@ -185,10 +185,12 @@ have been used to generate this answer:
 ```python
 import re
 
+
 def normalize_whitespace(text: str) -> str:
     text = text.replace("\r", " ").replace("\n", " ")
     text = re.sub(r"\s+", " ", text)
     return text.strip()
+
 
 for node_with_score in query_engine.retrieve(question_meeting_jan):
     node = node_with_score.node
@@ -464,12 +466,8 @@ sites_search_result = opendma_session.search(
 
 sites = [
     {
-        "id": site_obj.get_property(
-            OdmaQName.from_string("alfresco:cm:name")
-        ).get_string(),
-        "title": site_obj.get_property(
-            OdmaQName.from_string("alfresco:cm:title")
-        ).get_string(),
+        "id": site_obj.get_property(OdmaQName.from_string("alfresco:cm:name")).get_string(),
+        "title": site_obj.get_property(OdmaQName.from_string("alfresco:cm:title")).get_string(),
         "description": site_obj.get_property(
             OdmaQName.from_string("alfresco:cm:description")
         ).get_string(),
@@ -500,9 +498,11 @@ from llama_index.core.schema import QueryBundle, NodeWithScore
 from llama_index.core.vector_stores import MetadataFilter, MetadataFilters
 from llama_index.core import PromptTemplate
 
+
 class AnalyzedQuery(BaseModel):
     query: str = Field(description="Optimized semantic search query.")
     site: str = Field(description="Alfresco site id to search.")
+
 
 class MetadataAwareSiteRetriever(BaseRetriever):
     def __init__(self, index, sites, similarity_top_k=5, llm=None):
@@ -526,7 +526,9 @@ class MetadataAwareSiteRetriever(BaseRetriever):
             "Question:\n"
             f"{question}"
         )
-        return self.llm.structured_predict(AnalyzedQuery, prompt, site_descriptions=site_descriptions, question=question)
+        return self.llm.structured_predict(
+            AnalyzedQuery, prompt, site_descriptions=site_descriptions, question=question
+        )
 
     def _retrieve(self, query_bundle: QueryBundle) -> list[NodeWithScore]:
         analyzed_query = self._analyze_query(query_bundle.query_str)
@@ -552,9 +554,7 @@ metadata_aware_retriever = MetadataAwareSiteRetriever(
     similarity_top_k=5,
 )
 
-metadata_aware_query_engine = RetrieverQueryEngine.from_args(
-    metadata_aware_retriever
-)
+metadata_aware_query_engine = RetrieverQueryEngine.from_args(metadata_aware_retriever)
 ```
 
 Now we ask the same question again:

@@ -46,7 +46,7 @@ import getpass
 import os
 
 if not os.environ.get("OPENAI_API_KEY"):
-  os.environ["OPENAI_API_KEY"] = getpass.getpass("Enter API key for OpenAI: ")
+    os.environ["OPENAI_API_KEY"] = getpass.getpass("Enter API key for OpenAI: ")
 ```
 
 ## OpenDMA Document Reader
@@ -86,6 +86,7 @@ loading, we can inspect the returned documents and their metadata:
 
 ```python
 import re
+
 
 def normalize_whitespace(text: str) -> str:
     text = text.replace("\r", " ").replace("\n", " ")
