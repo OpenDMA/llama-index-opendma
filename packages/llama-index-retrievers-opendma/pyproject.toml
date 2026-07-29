@@ -1,6 +1,6 @@
 [project]
 name = "llama-index-retrievers-opendma"
-version = "0.1.0"
+version = "0.2.0.dev1"
 description = "LlamaIndex retrievers for OpenDMA - retrieve ECM content with LlamaIndex"
 license = "MIT"
 license-files = ["LICENSE"]
