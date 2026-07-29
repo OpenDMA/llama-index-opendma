@@ -16,6 +16,7 @@ If you are using the jupyter extension in VS Code, make sure to use this virtual
 for your kernel.
 
 Next, install jupyter notebooks, llama-index, opendma and the llama-index-opendma integrations:
+
 ```
 pip install notebook llama-index llama-index-readers-file llama-index-readers-opendma llama-index-retrievers-opendma
 ```
