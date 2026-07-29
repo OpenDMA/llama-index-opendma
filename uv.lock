@@ -1060,7 +1060,7 @@ dev = [
 
 [[package]]
 name = "llama-index-readers-opendma"
-version = "0.1.0.dev1"
+version = "0.1.0"
 source = { editable = "packages/llama-index-readers-opendma" }
 dependencies = [
     { name = "llama-index-core" },
@@ -1077,7 +1077,7 @@ requires-dist = [
 
 [[package]]
 name = "llama-index-retrievers-opendma"
-version = "0.1.0.dev1"
+version = "0.1.0"
 source = { editable = "packages/llama-index-retrievers-opendma" }
 dependencies = [
     { name = "llama-index-core" },
