@@ -28,7 +28,7 @@ These examples demonstrate the basic usage of the Document Loader with sample
 content from this tutorial repository.
 
 Features of the Tutorial XML Repository are limited, but it allows us to
-explore the basic functionality of this LangChain integration without complex
+explore the basic functionality of this LlamaIndex integration without complex
 setups.
 
 ### `01_basic_usage.py`
@@ -78,7 +78,7 @@ uv run --with llama-index-readers-file --package llama-index-readers-opendma pyt
 ## Alfresco Examples
 
 Alfresco Community Edition is available free of charge. We use it to explore
-features of this LangChain integration that require a full ECM repository.
+features of this LlamaIndex integration that require a full ECM repository.
 
 Each new setup contains the "Sample: Web Site Design Project" site, which will
 be used by these examples.
