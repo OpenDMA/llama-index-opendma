@@ -375,9 +375,7 @@ class OpenDMAReader(BaseReader):
         metadata = self._extract_metadata(document, mime_type)
 
         if not isinstance(content_element, OdmaDataContentElement):
-            if mime_type is None:
-                return self._missing_content_documents(metadata)
-            return self._unsupported_content_documents(metadata)
+            return self._missing_content_documents(metadata)
 
         file_name = content_element.get_file_name()
 
