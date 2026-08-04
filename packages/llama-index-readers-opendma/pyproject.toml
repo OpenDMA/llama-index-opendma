@@ -32,6 +32,13 @@ Repository = "https://github.com/OpenDMA/llama-index-opendma.git"
 Documentation = "https://github.com/OpenDMA/llama-index-opendma/tree/main/docs"
 Issues = "https://github.com/OpenDMA/llama-index-opendma/issues"
 
+[dependency-groups]
+dev = [
+    "llama-index-embeddings-openai>=0.5.0,<0.6.0",
+    "llama-index-llms-openai>=0.6.0,<0.7.0",
+    "llama-index-readers-docling>=0.4.0,<0.5.0",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
