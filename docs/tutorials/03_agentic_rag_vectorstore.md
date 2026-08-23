@@ -1,4 +1,4 @@
-# Agentic RAG
+# Agentic RAG with Vector Store
 
 This tutorial is a continuation of the previous [Metadata-Aware Retrieval](./02_metadata_aware_retrieval.md).
 
@@ -288,7 +288,6 @@ We print out the outcome of each step while the agent transitions through
 the workflow.
 
 ```python
-import asyncio
 from llama_index.core.agent.workflow import ToolCall, ToolCallResult
 
 def print_tool_result(tool_result: ToolCallResult) -> None:
@@ -301,7 +300,6 @@ def print_tool_result(tool_result: ToolCallResult) -> None:
     print()
 
 async def print_agent_events() -> None:
-
     QUESTION = "What is the state of localisation of our new website design?"
     print(f"Question: {QUESTION}\n")
 
@@ -321,8 +319,7 @@ async def print_agent_events() -> None:
     print("Final answer:")
     print(response)
 
-
-asyncio.run(print_agent_events())
+await print_agent_events()
 ```
 
 We can see how the orchestrator first decides to get a list of sites and the
@@ -426,3 +423,13 @@ data in general.
 
 Head over to the open source [OpenDMA](https://opendma.org) project to learn
 how to connect your ECM to LlamaIndex.
+
+The approach demonstrated here requires setting up a vector store in advance. This
+can be a very time consuming and expensive operation. Even worse, it might
+introduce security and compliance risks as the data in the vector store is no
+longer under the access control of your ECM.
+
+An [Agentic RAG with OpenDMA Retriever](./04_agentic_rag_retriever.md) leverages
+the full text search capability built into many ECM systems, like Alfresco. With
+an agent as orchestrator, the RAG can run multiple keyword based full text
+searches to compensate for the lack of similarity search offered by vector stores.
