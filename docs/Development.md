@@ -120,6 +120,9 @@ uv version --package llama-index-retrievers-opendma --bump minor --bump dev
 Make sure to manually update `__version__` in `packages/*/src/__init__.py` as
 it is not touched by `uv  version --bump`.
 
+Double check that the dependency on `llama-index-readers-opendma` in
+`llama-index-tools-opendma` is updated to match the new version.
+
 Otherwise, edit the package `pyproject.toml` files directly.
 
 Before publishing, make sure `dist/` only contains artifacts intended for this

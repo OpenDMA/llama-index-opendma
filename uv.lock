@@ -1750,6 +1750,7 @@ version = "0.2.0.dev1"
 source = { editable = "packages/llama-index-tools-opendma" }
 dependencies = [
     { name = "llama-index-core" },
+    { name = "llama-index-readers-opendma" },
     { name = "opendma-api" },
     { name = "opendma-remote" },
 ]
@@ -1764,6 +1765,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "llama-index-core", specifier = ">=0.14.0,<0.15.0" },
+    { name = "llama-index-readers-opendma", editable = "packages/llama-index-readers-opendma" },
     { name = "opendma-api", specifier = ">=0.8.0" },
     { name = "opendma-remote", specifier = ">=0.8.0" },
 ]
