@@ -203,6 +203,35 @@ def test_read_text_pages_and_caches_documents() -> None:
     assert tool_spec.load_read_text_calls == ["spec"]
 
 
+def test_read_text_cache_can_be_disabled() -> None:
+    tool_spec = RecordingOpenDMAToolSpec(read_text_cache_enabled=False)
+
+    tool_spec.opendma_read_text("spec")
+    tool_spec.opendma_read_text("spec")
+
+    assert tool_spec.load_read_text_calls == ["spec", "spec"]
+
+
+def test_read_text_cache_evicts_least_recently_used_entry() -> None:
+    tool_spec = RecordingOpenDMAToolSpec(read_text_cache_max_objects=1)
+
+    tool_spec.opendma_read_text("first")
+    tool_spec.opendma_read_text("second")
+    tool_spec.opendma_read_text("first")
+
+    assert tool_spec.load_read_text_calls == ["first", "second", "first"]
+
+
+def test_read_text_cache_expires_entries() -> None:
+    tool_spec = RecordingOpenDMAToolSpec(read_text_cache_ttl_seconds=1)
+
+    tool_spec.opendma_read_text("spec")
+    tool_spec._read_text_cache["spec"].created_at -= 2
+    tool_spec.opendma_read_text("spec")
+
+    assert tool_spec.load_read_text_calls == ["spec", "spec"]
+
+
 def test_constructor_validates_page_sizes() -> None:
     with pytest.raises(ValueError, match="child_page_size"):
         RecordingOpenDMAToolSpec(child_page_size=0)
