@@ -25,6 +25,10 @@ Every returned LlamaIndex `Document` or retrieved node contains:
 - text extracted from the repository document
 - `metadata`: OpenDMA metadata, repository-specific metadata, and integration metadata
 
+`OpenDMAToolSpec` provides a set of tools to be used by tool-calling agents to
+navigate around the repository, investigate the data model and read sections of
+documents.
+
 ## [OpenDMAReader](./Reader.md)
 
 Create an `OpenDMAReader` with the OpenDMA REST endpoint, credentials,
@@ -66,6 +70,26 @@ nodes = retriever.retrieve("SELECT * FROM cmis:document")
 ```
 
 See the [Retriever](./Retriever.md) documentation for details.
+
+## [OpenDMAToolSpec](./ToolSpec.md)
+
+`OpenDMAToolSpec` provides a set of tools to be used by agents.
+
+```python
+from llama_index.tools.opendma import OpenDMAToolSpec
+
+tool_spec = OpenDMAToolSpec(
+    endpoint="http://localhost:8080/opendma",
+    username="ignored",
+    password="ignored",
+    repository_id="sample-repo",
+)
+
+for tool in tool_spec.to_tool_list():
+    print(tool.metadata.name)
+```
+
+See the [ToolSpec](./ToolSpec.md) documentation for details.
 
 ## Tutorials
 

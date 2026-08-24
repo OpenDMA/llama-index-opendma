@@ -1,25 +1,32 @@
 # LlamaIndex OpenDMA
 
-OpenDMA integrations for [LlamaIndex](https://www.llamaindex.ai/).
+Integrate LlamaIndex with Enterprise Content Management systems such as Alfresco,
+CMOD, Documentum, FileNet P8, OnBase, SharePoint, and other platforms.
 
-OpenDMA is a vendor-neutral abstraction layer for enterprise content management
-systems. It provides a common API for repositories such as Alfresco, CMOD,
-Documentum, FileNet P8, OnBase, SharePoint, and other ECM or document management
-platforms.
+[OpenDMA](https://opendma.org/) is a vendor-neutral abstraction layer for
+Enterprise Content Management. It provides a common API for repositories allowing
+developers to build applications that access content stored on different
+platforms, including federating across multiple repositories.
 
-This repository contains LlamaIndex integration packages for OpenDMA. Use these
-packages when you want to build LlamaIndex applications, RAG pipelines, or
-content analysis workflows on top of documents stored in ECM systems.
+This repository contains LlamaIndex integration packages that connect the OpenDMA
+API to LlamaIndex. OpenDMA documents can be loaded as LlamaIndex `Document` objects
+and native search results are returned as `NodeWithScore` objects.
+
+A convenient ToolSpec allows agentic applications to browse through complex
+repository layouts to retrieve information.
+
+See our [examples](https://github.com/OpenDMA/llama-index-opendma/tree/main/docs/examples/README.md)
+and [tutorials](https://github.com/OpenDMA/llama-index-opendma/tree/main/docs/tutorials/README.md)
+to learn how to build RAG pipelines and tool-calling agents.
 
 ## Features
 
-- Load documents from an OpenDMA REST service by document ID, folder ID, or query.
-- Retrieve documents from OpenDMA search results through LlamaIndex's retriever API.
-- Use specialized retrievers for Alfresco, Documentum, FileNet P8, and OnBase.
-- Preserve OpenDMA and repository metadata on every LlamaIndex `Document`
-  object and retrieved node.
-- Process richer document formats with the optional `llama-index-readers-file`
-  package.
+- Tools to browse an ECM repository, e.g. to enable agents to discover relevant documents.
+- Tools for reading text chunks of documents, e.g. to allow agents to read sections of documents.
+- Load documents by document ID, folder ID, or query, e.g. to build a knowledge base.
+- Use LlamaIndex's retriever API for full text search, e.g. to use an existing repository as knowledge base.
+- Preserve full metadata on every LlamaIndex `Document`, e.g. to scope RAG retrieval to a subset of relevant items.
+- Process richer document formats with optional `llama-index-readers-file` package.
 
 ## Packages
 
@@ -27,13 +34,15 @@ content analysis workflows on top of documents stored in ECM systems.
   in ingestion pipelines
 - `llama-index-retrievers-opendma`: retriever integration to search in ECM
   systems and make the result available in LlamaIndex
+- `llama-index-tools-opendma`: ToolSpec to allow tool-calling agents to browse
+  through complex repository layouts
 
 ## Installation
 
 Install OpenDMA and this integration from PyPI:
 
 ```bash
-pip install llama-index-readers-opendma llama-index-retrievers-opendma
+pip install llama-index-readers-opendma llama-index-retrievers-opendma llama-index-tools-opendma
 ```
 
 ## Quickstart
@@ -78,6 +87,31 @@ retriever = OpenDMARetriever(
 nodes = retriever.retrieve("needle keyword")
 ```
 
+The `OpenDMAToolSpec` provides various tools to allow agents to browse repository
+layouts and read sections of text documents:
+
+```python
+from llama_index.tools.opendma import OpenDMAToolSpec
+from llama_index.core.agent.workflow import FunctionAgent
+from llama_index.llms.openai import OpenAI
+
+tool_spec = OpenDMAToolSpec(
+    endpoint="http://localhost:8080/opendma",
+    username="ignored",
+    password="ignored",
+    repository_id="sample-repo",
+)
+
+agent = FunctionAgent(
+    tools=tool_spec.to_tool_list(),
+    llm=OpenAI(model="gpt-4o-mini"),
+    system_prompt="You are...",
+)
+
+response = await agent.run("Where can I find the latest meeting notes of project orion?")
+print(response)
+```
+
 ## Documentation
 
 - [Tutorials](https://github.com/OpenDMA/llama-index-opendma/tree/main/docs/tutorials/README.md)
@@ -94,4 +128,12 @@ uv run pytest
 uv run ruff check .
 uv run --package llama-index-readers-opendma mypy -p llama_index.readers.opendma
 uv run --package llama-index-retrievers-opendma mypy -p llama_index.retrievers.opendma
+uv run --package llama-index-tools-opendma mypy -p llama_index.tools.opendma
 ```
+
+## Related Projects
+
+- [LlamaIndex](https://developers.llamaindex.ai/python/framework/)
+- [OpenDMA](https://opendma.org/)
+- [opendma-api](https://pypi.org/project/opendma-api/)
+- [opendma-remote](https://pypi.org/project/opendma-remote/)
