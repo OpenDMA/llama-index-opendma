@@ -27,6 +27,7 @@ members = [
     "llama-index-opendma-workspace",
     "llama-index-readers-opendma",
     "llama-index-retrievers-opendma",
+    "llama-index-tools-opendma",
 ]
 
 [[package]]
@@ -1734,6 +1735,37 @@ dev = [
 requires-dist = [
     { name = "llama-index-core", specifier = ">=0.14.0,<0.15.0" },
     { name = "llama-index-readers-opendma", editable = "packages/llama-index-readers-opendma" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "llama-index-embeddings-openai", specifier = ">=0.5.0,<0.6.0" },
+    { name = "llama-index-llms-openai", specifier = ">=0.6.0,<0.7.0" },
+    { name = "llama-index-readers-docling", specifier = ">=0.4.0,<0.5.0" },
+]
+
+[[package]]
+name = "llama-index-tools-opendma"
+version = "0.2.0.dev1"
+source = { editable = "packages/llama-index-tools-opendma" }
+dependencies = [
+    { name = "llama-index-core" },
+    { name = "opendma-api" },
+    { name = "opendma-remote" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "llama-index-embeddings-openai" },
+    { name = "llama-index-llms-openai" },
+    { name = "llama-index-readers-docling" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "llama-index-core", specifier = ">=0.14.0,<0.15.0" },
+    { name = "opendma-api", specifier = ">=0.8.0" },
+    { name = "opendma-remote", specifier = ">=0.8.0" },
 ]
 
 [package.metadata.requires-dev]
