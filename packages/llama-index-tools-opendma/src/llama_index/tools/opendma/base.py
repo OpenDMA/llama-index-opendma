@@ -10,6 +10,7 @@ from collections import OrderedDict
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date, datetime
+from html import escape as escape_xml_text
 from time import monotonic
 from typing import Any
 
@@ -140,6 +141,16 @@ class OpenDMASearchInput(BaseModel):
     )
 
 
+class OnBaseSearchInput(BaseModel):
+    """Input for opendma_search on OnBase."""
+
+    full_text: str | None = Field(default=None, description="Optional full-text query.")
+    included_metadata: list[str] | None = Field(
+        default=None,
+        description="Qualified OpenDMA property names to include for each item.",
+    )
+
+
 class OpenDMAReadTextInput(BaseModel):
     """Input for opendma_read_text."""
 
@@ -154,6 +165,19 @@ class OpenDMADescribeClassInput(BaseModel):
     """Input for opendma_describe_class."""
 
     type_or_aspect_name: str = Field(description="Qualified OpenDMA type or aspect name.")
+
+
+class AlfrescoListSitesInput(BaseModel):
+    """Input for alfresco_list_sites."""
+
+
+class SiteDescription(BaseModel):
+    """Description of an Alfresco site."""
+
+    short_name: str
+    title: str
+    description: str
+    root_folder_id: str
 
 
 @dataclass
@@ -683,6 +707,13 @@ class OpenDMAToolSpec(BaseToolSpec):
             return [self._scalar_value(item) for item in value]
         return self._scalar_value(value)
 
+    def _metadata_string(self, obj: Any, property_name: str) -> str:
+        prop = obj.get_property(OdmaQName.from_string(property_name))
+        if prop is None:
+            return ""
+        value = prop.get_string()
+        return value or ""
+
     def _property_description(self, property_info: Any) -> PropertyDescription:
         choices = [
             choice.get_display_name()
@@ -853,3 +884,407 @@ class _SearchToolSpec(OpenDMAToolSpec):
         if full_text is None:
             return []
         return re.sub(r"\s+", " ", full_text).strip().split()
+
+
+class AlfrescoToolSpec(_SearchToolSpec):
+    """Create read-only LlamaIndex tools for Alfresco via OpenDMA."""
+
+    query_language = "alfresco:afts"
+
+    def __init__(
+        self,
+        endpoint: str,
+        username: str,
+        password: str,
+        repository_id: str = "Alfresco",
+        file_extractor_per_mimetype: dict[str, BaseReader] | None = None,
+        child_page_size: int = 50,
+        read_chunk_page_size: int = 3,
+        search_result_limit: int = 20,
+        read_text_cache_enabled: bool = True,
+        read_text_cache_max_objects: int = 32,
+        read_text_cache_ttl_seconds: int | None = 21600,
+    ) -> None:
+        super().__init__(
+            endpoint=endpoint,
+            username=username,
+            password=password,
+            repository_id=repository_id,
+            file_extractor_per_mimetype=file_extractor_per_mimetype,
+            child_page_size=child_page_size,
+            read_chunk_page_size=read_chunk_page_size,
+            search_result_limit=search_result_limit,
+            read_text_cache_enabled=read_text_cache_enabled,
+            read_text_cache_max_objects=read_text_cache_max_objects,
+            read_text_cache_ttl_seconds=read_text_cache_ttl_seconds,
+        )
+
+    def to_tool_list(
+        self,
+        spec_functions: list[SPEC_FUNCTION_TYPE] | None = None,
+        func_to_metadata_mapping: dict[str, ToolMetadata] | None = None,
+    ) -> list[FunctionTool]:
+        """Return OpenDMA tools plus Alfresco-specific tools."""
+        if spec_functions is not None or func_to_metadata_mapping is not None:
+            return super().to_tool_list(spec_functions, func_to_metadata_mapping)
+
+        return [
+            *super().to_tool_list(),
+            self._function_tool(
+                name="alfresco_list_sites",
+                description=(
+                    "List Alfresco sites with short name, title, description, "
+                    "and root folder object ID."
+                ),
+                fn=self.alfresco_list_sites,
+                fn_schema=AlfrescoListSitesInput,
+            ),
+        ]
+
+    def alfresco_list_sites(self, **kwargs: Any) -> list[dict[str, Any]] | dict[str, Any]:
+        """Implementation for alfresco_list_sites."""
+        try:
+            input_error = self._validate_tool_input(
+                tool_name="alfresco_list_sites",
+                provided=kwargs,
+                required={},
+                allowed=set(),
+            )
+            if input_error is not None:
+                return input_error
+
+            session = self._create_session()
+            try:
+                search_result = session.search(
+                    self._repository_id(),
+                    OdmaQName.from_string("alfresco:afts"),
+                    'TYPE:"st:site"',
+                )
+
+                sites = []
+                for obj in search_result.get_objects():
+                    if not isinstance(obj, OdmaFolder):
+                        continue
+                    sites.append(
+                        SiteDescription(
+                            short_name=self._metadata_string(obj, "alfresco:cm:name"),
+                            title=self._metadata_string(obj, "alfresco:cm:title"),
+                            description=self._metadata_string(
+                                obj,
+                                "alfresco:cm:description",
+                            ),
+                            root_folder_id=str(obj.get_id()),
+                        )
+                    )
+                return [site.model_dump() for site in sites]
+            finally:
+                session.close()
+        except Exception as exc:
+            return [self._tool_error("alfresco_list_sites", exc)]
+
+    def _search_tool_description(self) -> str:
+        return (
+            "Search Alfresco documents via OpenDMA using full text. "
+            "Use in_folder to restrict the search to an Alfresco folder."
+        )
+
+    def _build_search_query(
+        self,
+        full_text: str | None,
+        in_folder: str | None,
+        include_subfolder_in_folder: bool | None,
+    ) -> str:
+        query_parts = []
+
+        if full_text is not None:
+            normalized_text = re.sub(r"\s+", " ", full_text).strip()
+            if normalized_text:
+                query_parts.append(f'TEXT:"{self._escape_afts_phrase(normalized_text)}"')
+
+        if in_folder is not None:
+            normalized_folder = in_folder.strip()
+            if normalized_folder:
+                folder_operator = "ANCESTOR" if include_subfolder_in_folder else "PARENT"
+                folder_ref = self._alfresco_node_ref(normalized_folder)
+                query_parts.append(f'{folder_operator}:"{self._escape_afts_phrase(folder_ref)}"')
+
+        if not query_parts:
+            raise ValueError("full_text or in_folder must be provided")
+
+        return " AND ".join(query_parts)
+
+    def _alfresco_node_ref(self, object_id: str) -> str:
+        if object_id.startswith("workspace://"):
+            return object_id
+        if object_id.startswith("node:"):
+            return f"workspace://SpacesStore/{object_id.removeprefix('node:')}"
+        return object_id
+
+    def _escape_afts_phrase(self, value: str) -> str:
+        return value.replace("\\", "\\\\").replace('"', '\\"')
+
+
+class FileNetP8ToolSpec(_SearchToolSpec):
+    """Create read-only LlamaIndex tools for FileNet P8 via OpenDMA."""
+
+    query_language = "filenetp8:sql"
+
+    def __init__(
+        self,
+        endpoint: str,
+        username: str,
+        password: str,
+        repository_id: str = "FileNetP8",
+        file_extractor_per_mimetype: dict[str, BaseReader] | None = None,
+        child_page_size: int = 50,
+        read_chunk_page_size: int = 3,
+        search_result_limit: int = 20,
+        read_text_cache_enabled: bool = True,
+        read_text_cache_max_objects: int = 32,
+        read_text_cache_ttl_seconds: int | None = 21600,
+    ) -> None:
+        super().__init__(
+            endpoint=endpoint,
+            username=username,
+            password=password,
+            repository_id=repository_id,
+            file_extractor_per_mimetype=file_extractor_per_mimetype,
+            child_page_size=child_page_size,
+            read_chunk_page_size=read_chunk_page_size,
+            search_result_limit=search_result_limit,
+            read_text_cache_enabled=read_text_cache_enabled,
+            read_text_cache_max_objects=read_text_cache_max_objects,
+            read_text_cache_ttl_seconds=read_text_cache_ttl_seconds,
+        )
+
+    def _search_tool_description(self) -> str:
+        return (
+            "Search FileNet P8 documents via OpenDMA using full text. "
+            "Use in_folder to restrict the search to a FileNet folder."
+        )
+
+    def _build_search_query(
+        self,
+        full_text: str | None,
+        in_folder: str | None,
+        include_subfolder_in_folder: bool | None,
+    ) -> str:
+        query_parts = []
+        join = ""
+
+        words = self._split_words(full_text)
+        if words:
+            join = " INNER JOIN ContentSearch cs ON d.This = cs.QueriedObject"
+            content_query = " OR ".join(self._escape_content_search_word(word) for word in words)
+            content_query = self._escape_sql_string_literal(content_query)
+            query_parts.append(f"CONTAINS(d.*, '{content_query}')")
+
+        if in_folder is not None:
+            normalized_folder = in_folder.strip()
+            if normalized_folder:
+                folder_operator = "INSUBFOLDER" if include_subfolder_in_folder else "INFOLDER"
+                folder_id = self._filenet_folder_id(normalized_folder)
+                query_parts.append(f"d.This {folder_operator} {folder_id}")
+
+        if not query_parts:
+            raise ValueError("full_text or in_folder must be provided")
+
+        return f"SELECT d.This FROM Document d{join} WHERE {' AND '.join(query_parts)}"
+
+    def _escape_content_search_word(self, value: str) -> str:
+        special_characters = frozenset("*?:^()[]{}@\\~")
+        return "".join(
+            f"\\{character}" if character in special_characters else character
+            for character in value
+        )
+
+    def _escape_sql_string_literal(self, value: str) -> str:
+        return value.replace("'", "''")
+
+    def _filenet_folder_id(self, object_id: str) -> str:
+        parts = object_id.split(":")
+        if len(parts) != 3:
+            raise ValueError(
+                "FileNet folder object ID must have the format 'objectstore:<classId>:<objectId>'"
+            )
+        if parts[0] != "objectstore":
+            raise ValueError("FileNet folder object ID must start with 'objectstore:'")
+        folder_id = parts[2]
+        if not folder_id.startswith("{") or not folder_id.endswith("}"):
+            raise ValueError("FileNet folder object ID must end with a braced object ID")
+        return folder_id
+
+
+class DocumentumToolSpec(_SearchToolSpec):
+    """Create read-only LlamaIndex tools for Documentum via OpenDMA."""
+
+    query_language = "dctm:dql"
+
+    def __init__(
+        self,
+        endpoint: str,
+        username: str,
+        password: str,
+        repository_id: str = "Documentum",
+        file_extractor_per_mimetype: dict[str, BaseReader] | None = None,
+        child_page_size: int = 50,
+        read_chunk_page_size: int = 3,
+        search_result_limit: int = 20,
+        read_text_cache_enabled: bool = True,
+        read_text_cache_max_objects: int = 32,
+        read_text_cache_ttl_seconds: int | None = 21600,
+    ) -> None:
+        super().__init__(
+            endpoint=endpoint,
+            username=username,
+            password=password,
+            repository_id=repository_id,
+            file_extractor_per_mimetype=file_extractor_per_mimetype,
+            child_page_size=child_page_size,
+            read_chunk_page_size=read_chunk_page_size,
+            search_result_limit=search_result_limit,
+            read_text_cache_enabled=read_text_cache_enabled,
+            read_text_cache_max_objects=read_text_cache_max_objects,
+            read_text_cache_ttl_seconds=read_text_cache_ttl_seconds,
+        )
+
+    def _search_tool_description(self) -> str:
+        return (
+            "Search Documentum documents via OpenDMA using full text. "
+            "Use in_folder to restrict the search to a Documentum folder."
+        )
+
+    def _build_search_query(
+        self,
+        full_text: str | None,
+        in_folder: str | None,
+        include_subfolder_in_folder: bool | None,
+    ) -> str:
+        content_query = self._documentum_content_query(full_text)
+        folder_query = self._documentum_folder_query(in_folder, include_subfolder_in_folder)
+
+        if content_query is None and folder_query is None:
+            raise ValueError("full_text or in_folder must be provided")
+
+        query = "SELECT * FROM dm_document"
+        if content_query is not None:
+            query += f" SEARCH DOCUMENT CONTAINS {content_query}"
+        if folder_query is not None:
+            query += f" WHERE {folder_query}"
+        return query
+
+    def _documentum_content_query(self, full_text: str | None) -> str | None:
+        words = self._split_words(full_text)
+        if not words:
+            return None
+
+        return " OR ".join(f"'{self._escape_dql_string_literal(word)}'" for word in words)
+
+    def _documentum_folder_query(
+        self,
+        in_folder: str | None,
+        include_subfolder_in_folder: bool | None,
+    ) -> str | None:
+        if in_folder is None:
+            return None
+        normalized_folder = in_folder.strip()
+        if not normalized_folder:
+            return None
+        folder_id = self._escape_dql_string_literal(normalized_folder)
+        if include_subfolder_in_folder:
+            return f"FOLDER(ID('{folder_id}'), DESCEND)"
+        return f"FOLDER(ID('{folder_id}'))"
+
+    def _escape_dql_string_literal(self, value: str) -> str:
+        return value.replace("'", "''")
+
+
+class OnBaseToolSpec(_SearchToolSpec):
+    """Create read-only LlamaIndex tools for OnBase via OpenDMA."""
+
+    query_language = "onbase:DocumentQuery"
+
+    def __init__(
+        self,
+        endpoint: str,
+        username: str,
+        password: str,
+        repository_id: str = "OnBase",
+        file_extractor_per_mimetype: dict[str, BaseReader] | None = None,
+        child_page_size: int = 50,
+        read_chunk_page_size: int = 3,
+        search_result_limit: int = 20,
+        read_text_cache_enabled: bool = True,
+        read_text_cache_max_objects: int = 32,
+        read_text_cache_ttl_seconds: int | None = 21600,
+    ) -> None:
+        super().__init__(
+            endpoint=endpoint,
+            username=username,
+            password=password,
+            repository_id=repository_id,
+            file_extractor_per_mimetype=file_extractor_per_mimetype,
+            child_page_size=child_page_size,
+            read_chunk_page_size=read_chunk_page_size,
+            search_result_limit=search_result_limit,
+            read_text_cache_enabled=read_text_cache_enabled,
+            read_text_cache_max_objects=read_text_cache_max_objects,
+            read_text_cache_ttl_seconds=read_text_cache_ttl_seconds,
+        )
+
+    def opendma_search(
+        self,
+        full_text: str | None = None,
+        in_folder: str | None = None,
+        include_subfolder_in_folder: bool | None = None,
+        included_metadata: list[str] | None = None,
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        """Implementation for opendma_search using OnBase DocumentQuery."""
+        return super().opendma_search(
+            full_text=full_text,
+            in_folder=in_folder,
+            include_subfolder_in_folder=include_subfolder_in_folder,
+            included_metadata=included_metadata,
+            **kwargs,
+        )
+
+    def _search_tool_description(self) -> str:
+        return "Search OnBase documents via OpenDMA using full text."
+
+    def _search_tool_args_schema(self) -> type[BaseModel]:
+        return OnBaseSearchInput
+
+    def _build_search_query(
+        self,
+        full_text: str | None,
+        in_folder: str | None,
+        include_subfolder_in_folder: bool | None,  # noqa: ARG002
+    ) -> str:
+        if in_folder is not None:
+            raise ValueError("Restricting OnBase searches to a folder is not available")
+        return self._build_full_text_query(full_text)
+
+    def _build_full_text_query(self, full_text: str | None) -> str:
+        words = self._split_words(full_text)
+        if not words:
+            raise ValueError("full_text must not be empty")
+
+        full_text_query = escape_xml_text(" OR ".join(words), quote=False)
+        return (
+            "<DocumentQuery>"
+            '<CustomQueries isList="true"></CustomQueries>'
+            '<DateRanges isList="true"></DateRanges>'
+            '<DisplayField isList="true"></DisplayField>'
+            "<Distinct>false</Distinct>"
+            '<DocumentRanges isList="true"></DocumentRanges>'
+            "<DocumentTypeGroups></DocumentTypeGroups>"
+            "<DocumentTypes></DocumentTypes>"
+            f"<FullTextSearchString>{full_text_query}</FullTextSearchString>"
+            "<NoteTypes></NoteTypes>"
+            '<QueryKeywords isList="true"></QueryKeywords>'
+            '<QueryRecords isList="true"></QueryRecords>'
+            '<SortBy isList="true"></SortBy>'
+            "<TextSearchType>2</TextSearchType>"
+            "</DocumentQuery>"
+        )

@@ -9,7 +9,13 @@ from typing import Any, cast
 import llama_index.tools.opendma.base as tools_module
 import pytest
 from llama_index.core.schema import Document
-from llama_index.tools.opendma import OpenDMAToolSpec
+from llama_index.tools.opendma import (
+    AlfrescoToolSpec,
+    DocumentumToolSpec,
+    FileNetP8ToolSpec,
+    OnBaseToolSpec,
+    OpenDMAToolSpec,
+)
 from llama_index.tools.opendma.base import OpenDMASearchInput, _SearchToolSpec
 from opendma.api import (
     CLASS_CLASS,
@@ -325,6 +331,44 @@ def create_fake_folder_a() -> OdmaObject:
         OdmaPropertyImpl(
             OdmaQName("opendma", "Name"),
             "Hello, Folder!",
+            None,
+            OdmaType.STRING,
+            False,
+            False,
+        ),
+    ]
+    return create_fake_folder(props)
+
+
+def create_fake_site() -> OdmaObject:
+    props = [
+        OdmaPropertyImpl(
+            OdmaQName("opendma", "Id"),
+            OdmaId("site-swsdp"),
+            None,
+            OdmaType.ID,
+            False,
+            False,
+        ),
+        OdmaPropertyImpl(
+            OdmaQName("alfresco:cm", "name"),
+            "swsdp",
+            None,
+            OdmaType.STRING,
+            False,
+            False,
+        ),
+        OdmaPropertyImpl(
+            OdmaQName("alfresco:cm", "title"),
+            "Sample: Web Site Design Project",
+            None,
+            OdmaType.STRING,
+            False,
+            False,
+        ),
+        OdmaPropertyImpl(
+            OdmaQName("alfresco:cm", "description"),
+            "This is a Sample Alfresco Team site.",
             None,
             OdmaType.STRING,
             False,
@@ -961,3 +1005,385 @@ class TestSearchToolSpec:
                 repository_id="sample-repo",
                 search_result_limit=0,
             )
+
+
+class TestAlfrescoToolSpec:
+    """Test cases for AlfrescoToolSpec public tool contract."""
+
+    def test_search_uses_alfresco_query_language_and_returns_items(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        session = FakeOdmaSession()
+        tool_spec = AlfrescoToolSpec(
+            endpoint="http://localhost:7070/opendma/alf",
+            username="admin",
+            password="admin",
+        )
+        monkeypatch.setattr(tool_spec, "_create_session", lambda: session)
+
+        result = tool_spec.opendma_search(full_text="website design")
+
+        assert tool_spec.repository_id == "Alfresco"
+        assert session.query_language == "alfresco:afts"
+        assert session.query == 'TEXT:"website design"'
+        assert session.closed
+        assert result["items"][0]["object_id"] == "doc-a"
+
+    def test_search_escapes_alfresco_phrases(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        session = FakeOdmaSession()
+        tool_spec = AlfrescoToolSpec(
+            endpoint="http://localhost:7070/opendma/alf",
+            username="admin",
+            password="admin",
+        )
+        monkeypatch.setattr(tool_spec, "_create_session", lambda: session)
+
+        result = tool_spec.opendma_search(full_text='site "design"')
+
+        assert "error" not in result
+        assert session.query == 'TEXT:"site \\"design\\""'
+
+    def test_search_converts_alfresco_node_folder_ids(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        session = FakeOdmaSession()
+        tool_spec = AlfrescoToolSpec(
+            endpoint="http://localhost:7070/opendma/alf",
+            username="admin",
+            password="admin",
+        )
+        monkeypatch.setattr(tool_spec, "_create_session", lambda: session)
+
+        result = tool_spec.opendma_search(
+            in_folder="node:abc",
+            include_subfolder_in_folder=True,
+        )
+
+        assert "error" not in result
+        assert session.query == 'ANCESTOR:"workspace://SpacesStore/abc"'
+
+    def test_search_returns_error_payload_for_empty_alfresco_search(self) -> None:
+        tool_spec = AlfrescoToolSpec(
+            endpoint="http://localhost:7070/opendma/alf",
+            username="admin",
+            password="admin",
+        )
+
+        result = tool_spec.opendma_search(full_text=" ")
+
+        assert result["error"] is True
+        assert result["tool"] == "opendma_search"
+
+    def test_to_tool_list_includes_alfresco_list_sites(self) -> None:
+        tool_spec = AlfrescoToolSpec(
+            endpoint="http://localhost:7070/opendma/alf",
+            username="admin",
+            password="admin",
+        )
+
+        tools = tool_spec.to_tool_list()
+
+        assert [tool.metadata.name for tool in tools] == [
+            "opendma_get_metadata",
+            "opendma_list_children",
+            "opendma_read_text",
+            "opendma_describe_class",
+            "opendma_search",
+            "alfresco_list_sites",
+        ]
+
+    def test_list_sites_returns_site_descriptions(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        session = FakeOdmaSession(objects=[create_fake_site(), create_fake_doc_a()])
+        tool_spec = AlfrescoToolSpec(
+            endpoint="http://localhost:7070/opendma/alf",
+            username="admin",
+            password="admin",
+        )
+        monkeypatch.setattr(tool_spec, "_create_session", lambda: session)
+
+        result = tool_spec.alfresco_list_sites()
+
+        assert session.query_language == "alfresco:afts"
+        assert session.query == 'TYPE:"st:site"'
+        assert session.closed
+        assert result == [
+            {
+                "short_name": "swsdp",
+                "title": "Sample: Web Site Design Project",
+                "description": "This is a Sample Alfresco Team site.",
+                "root_folder_id": "site-swsdp",
+            }
+        ]
+
+    def test_list_sites_returns_input_error_for_unexpected_parameter(self) -> None:
+        tool_spec = AlfrescoToolSpec(
+            endpoint="http://localhost:7070/opendma/alf",
+            username="admin",
+            password="admin",
+        )
+
+        result = tool_spec.alfresco_list_sites(unexpected="value")
+
+        assert result == {
+            "error": True,
+            "tool": "alfresco_list_sites",
+            "error_type": "ToolInputError",
+            "message": "Unexpected parameter(s): unexpected. Allowed parameters: none.",
+        }
+
+
+class TestFileNetP8ToolSpec:
+    """Test cases for FileNetP8ToolSpec public tool contract."""
+
+    def test_search_uses_filenet_query_language(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        session = FakeOdmaSession()
+        tool_spec = FileNetP8ToolSpec(
+            endpoint="http://localhost:8080/opendma/filenet",
+            username="admin",
+            password="admin",
+        )
+        monkeypatch.setattr(tool_spec, "_create_session", lambda: session)
+
+        result = tool_spec.opendma_search(full_text="foo bar")
+
+        assert tool_spec.repository_id == "FileNetP8"
+        assert session.query_language == "filenetp8:sql"
+        assert session.query == (
+            "SELECT d.This FROM Document d"
+            " INNER JOIN ContentSearch cs ON d.This = cs.QueriedObject"
+            " WHERE CONTAINS(d.*, 'foo OR bar')"
+        )
+        assert result["items"][0]["object_id"] == "doc-a"
+
+    def test_search_accepts_filenet_special_characters(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        session = FakeOdmaSession()
+        tool_spec = FileNetP8ToolSpec(
+            endpoint="http://localhost:8080/opendma/filenet",
+            username="admin",
+            password="admin",
+        )
+        monkeypatch.setattr(tool_spec, "_create_session", lambda: session)
+
+        result = tool_spec.opendma_search(full_text="owner's name?")
+
+        assert "error" not in result
+        assert session.query == (
+            "SELECT d.This FROM Document d"
+            " INNER JOIN ContentSearch cs ON d.This = cs.QueriedObject"
+            " WHERE CONTAINS(d.*, 'owner''s OR name\\?')"
+        )
+
+    def test_search_restricts_to_filenet_folder(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        session = FakeOdmaSession()
+        tool_spec = FileNetP8ToolSpec(
+            endpoint="http://localhost:8080/opendma/filenet",
+            username="admin",
+            password="admin",
+        )
+        monkeypatch.setattr(tool_spec, "_create_session", lambda: session)
+
+        result = tool_spec.opendma_search(
+            in_folder="objectstore:Folder:{123}",
+            include_subfolder_in_folder=False,
+        )
+
+        assert "error" not in result
+        assert session.query == "SELECT d.This FROM Document d WHERE d.This INFOLDER {123}"
+
+    def test_search_returns_error_payload_for_invalid_filenet_folder_id(self) -> None:
+        tool_spec = FileNetP8ToolSpec(
+            endpoint="http://localhost:8080/opendma/filenet",
+            username="admin",
+            password="admin",
+        )
+
+        result = tool_spec.opendma_search(in_folder="bad-folder-id")
+
+        assert result["error"] is True
+        assert result["tool"] == "opendma_search"
+
+    def test_search_returns_error_payload_for_empty_filenet_search(self) -> None:
+        tool_spec = FileNetP8ToolSpec(
+            endpoint="http://localhost:8080/opendma/filenet",
+            username="admin",
+            password="admin",
+        )
+
+        result = tool_spec.opendma_search(full_text="  \n\t  ")
+
+        assert result["error"] is True
+        assert result["tool"] == "opendma_search"
+
+
+class TestDocumentumToolSpec:
+    """Test cases for DocumentumToolSpec public tool contract."""
+
+    def test_search_uses_documentum_query_language(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        session = FakeOdmaSession()
+        tool_spec = DocumentumToolSpec(
+            endpoint="http://localhost:8080/opendma/documentum",
+            username="admin",
+            password="admin",
+        )
+        monkeypatch.setattr(tool_spec, "_create_session", lambda: session)
+
+        result = tool_spec.opendma_search(full_text="foo bar")
+
+        assert tool_spec.repository_id == "Documentum"
+        assert session.query_language == "dctm:dql"
+        assert session.query == "SELECT * FROM dm_document SEARCH DOCUMENT CONTAINS 'foo' OR 'bar'"
+        assert result["items"][0]["object_id"] == "doc-a"
+
+    def test_search_accepts_documentum_apostrophes(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        session = FakeOdmaSession()
+        tool_spec = DocumentumToolSpec(
+            endpoint="http://localhost:8080/opendma/documentum",
+            username="admin",
+            password="admin",
+        )
+        monkeypatch.setattr(tool_spec, "_create_session", lambda: session)
+
+        result = tool_spec.opendma_search(full_text="owner's name")
+
+        assert "error" not in result
+        assert session.query == (
+            "SELECT * FROM dm_document SEARCH DOCUMENT CONTAINS 'owner''s' OR 'name'"
+        )
+
+    def test_search_restricts_to_documentum_folder(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        session = FakeOdmaSession()
+        tool_spec = DocumentumToolSpec(
+            endpoint="http://localhost:8080/opendma/documentum",
+            username="admin",
+            password="admin",
+        )
+        monkeypatch.setattr(tool_spec, "_create_session", lambda: session)
+
+        result = tool_spec.opendma_search(
+            in_folder="0b00000180000107",
+            include_subfolder_in_folder=True,
+        )
+
+        assert "error" not in result
+        assert session.query == (
+            "SELECT * FROM dm_document WHERE FOLDER(ID('0b00000180000107'), DESCEND)"
+        )
+
+    def test_search_returns_error_payload_for_empty_documentum_search(self) -> None:
+        tool_spec = DocumentumToolSpec(
+            endpoint="http://localhost:8080/opendma/documentum",
+            username="admin",
+            password="admin",
+        )
+
+        result = tool_spec.opendma_search(full_text="  \n\t  ")
+
+        assert result["error"] is True
+        assert result["tool"] == "opendma_search"
+
+
+class TestOnBaseToolSpec:
+    """Test cases for OnBaseToolSpec public tool contract."""
+
+    def test_search_uses_onbase_query_language(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        session = FakeOdmaSession()
+        tool_spec = OnBaseToolSpec(
+            endpoint="http://localhost:8080/opendma/onbase",
+            username="admin",
+            password="admin",
+        )
+        monkeypatch.setattr(tool_spec, "_create_session", lambda: session)
+
+        result = tool_spec.opendma_search(full_text="foo bar")
+
+        assert tool_spec.repository_id == "OnBase"
+        assert session.query_language == "onbase:DocumentQuery"
+        assert session.query
+        assert "<FullTextSearchString>foo OR bar</FullTextSearchString>" in session.query
+        assert result["items"][0]["object_id"] == "doc-a"
+
+    def test_search_accepts_onbase_xml_special_characters(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        session = FakeOdmaSession()
+        tool_spec = OnBaseToolSpec(
+            endpoint="http://localhost:8080/opendma/onbase",
+            username="admin",
+            password="admin",
+        )
+        monkeypatch.setattr(tool_spec, "_create_session", lambda: session)
+
+        result = tool_spec.opendma_search(full_text="<test foo bar")
+
+        assert "error" not in result
+        assert (
+            "<FullTextSearchString>&lt;test OR foo OR bar</FullTextSearchString>" in session.query
+        )
+
+    def test_search_returns_error_payload_for_empty_onbase_search(self) -> None:
+        tool_spec = OnBaseToolSpec(
+            endpoint="http://localhost:8080/opendma/onbase",
+            username="admin",
+            password="admin",
+        )
+
+        result = tool_spec.opendma_search(full_text="  \n\t  ")
+
+        assert result["error"] is True
+        assert result["tool"] == "opendma_search"
+
+    def test_search_returns_error_payload_for_onbase_folder_restriction(self) -> None:
+        tool_spec = OnBaseToolSpec(
+            endpoint="http://localhost:8080/opendma/onbase",
+            username="admin",
+            password="admin",
+        )
+
+        result = tool_spec.opendma_search(in_folder="folder-a")
+
+        assert result["error"] is True
+        assert result["tool"] == "opendma_search"
+
+    def test_search_tool_schema_omits_folder_parameters(self) -> None:
+        tool_spec = OnBaseToolSpec(
+            endpoint="http://localhost:8080/opendma/onbase",
+            username="admin",
+            password="admin",
+        )
+        tools_by_name = {tool.metadata.name: tool for tool in tool_spec.to_tool_list()}
+        search_schema = tools_by_name["opendma_search"].metadata.get_parameters_dict()
+
+        assert "full_text" in search_schema["properties"]
+        assert "included_metadata" in search_schema["properties"]
+        assert "in_folder" not in search_schema["properties"]
+        assert "include_subfolder_in_folder" not in search_schema["properties"]
