@@ -39,6 +39,16 @@ class PropertyDescription(BaseModel):
     possible_values: list[str] | None = None
 
 
+class OpenDMAObjectMetadataResult(BaseModel):
+    """Metadata result for one OpenDMA object."""
+
+    object_id: str
+    type_name: str
+    aspect_names: list[str]
+    name: str
+    metadata: dict[str, MetadataValue]
+
+
 class OpenDMAObjectItem(BaseModel):
     """Compact OpenDMA object representation returned by list/search tools."""
 
@@ -71,6 +81,16 @@ class OpenDMAReadTextResult(BaseModel):
     chunks: list[OpenDMAReadChunk]
     has_more: bool
     chunk_continuation_token: str | None = None
+
+
+class OpenDMAClassDescription(BaseModel):
+    """Description of an OpenDMA type or aspect."""
+
+    name: str
+    kind: str
+    parent: str | None
+    inherited_properties: list[PropertyDescription]
+    declared_properties: list[PropertyDescription]
 
 
 class OpenDMAGetMetadataInput(BaseModel):
@@ -259,12 +279,13 @@ class OpenDMAToolSpec(BaseToolSpec):
             session = self._create_session()
             try:
                 obj = self._get_object(session, object_id)
-                metadata = self._extract_metadata(obj)
-                return {
-                    "type_name": str(obj.get_odma_class().get_qname()),
-                    "aspect_names": [str(aspect.get_qname()) for aspect in obj.get_aspects()],
-                    "metadata": metadata,
-                }
+                return OpenDMAObjectMetadataResult(
+                    object_id=str(obj.get_id()),
+                    type_name=str(obj.get_odma_class().get_qname()),
+                    aspect_names=[str(aspect.get_qname()) for aspect in obj.get_aspects()],
+                    name=self._object_name(obj),
+                    metadata=self._extract_metadata(obj),
+                ).model_dump()
             finally:
                 session.close()
         except Exception as exc:
@@ -423,17 +444,13 @@ class OpenDMAToolSpec(BaseToolSpec):
                 ]
                 parent = odma_class.get_super_class()
 
-                return {
-                    "name": str(odma_class.get_qname()),
-                    "kind": "aspect" if odma_class.get_aspect() else "type",
-                    "parent": str(parent.get_qname()) if parent is not None else None,
-                    "inherited_properties": [
-                        self._property_description(prop).model_dump() for prop in inherited
-                    ],
-                    "declared_properties": [
-                        self._property_description(prop).model_dump() for prop in declared
-                    ],
-                }
+                return OpenDMAClassDescription(
+                    name=str(odma_class.get_qname()),
+                    kind="aspect" if odma_class.get_aspect() else "type",
+                    parent=str(parent.get_qname()) if parent is not None else None,
+                    inherited_properties=[self._property_description(prop) for prop in inherited],
+                    declared_properties=[self._property_description(prop) for prop in declared],
+                ).model_dump()
             finally:
                 session.close()
         except Exception as exc:
