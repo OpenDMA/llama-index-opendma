@@ -227,6 +227,53 @@ def test_tool_error_matches_open_dma_tool_contract() -> None:
     }
 
 
+def test_tool_methods_return_input_error_for_missing_required_parameter() -> None:
+    tool_spec = RecordingOpenDMAToolSpec()
+
+    result = tool_spec.opendma_get_metadata()
+
+    assert result == {
+        "error": True,
+        "tool": "opendma_get_metadata",
+        "error_type": "ToolInputError",
+        "message": "Missing required string parameter(s): object_id.",
+    }
+
+
+def test_tool_methods_return_input_error_for_unexpected_parameter() -> None:
+    tool_spec = RecordingOpenDMAToolSpec()
+
+    result = tool_spec.opendma_read_text(object_id="spec", unexpected="value")
+
+    assert result == {
+        "error": True,
+        "tool": "opendma_read_text",
+        "error_type": "ToolInputError",
+        "message": (
+            "Unexpected parameter(s): unexpected. "
+            "Allowed parameters: chunk_continuation_token, object_id."
+        ),
+    }
+    assert tool_spec.load_read_text_calls == []
+
+
+def test_list_children_validates_include_options_before_repository_call() -> None:
+    tool_spec = RecordingOpenDMAToolSpec()
+
+    result = tool_spec.opendma_list_children(
+        object_id="sample-folder-a",
+        include_folders=False,
+        include_files=False,
+    )
+
+    assert result == {
+        "error": True,
+        "tool": "opendma_list_children",
+        "error_type": "ValueError",
+        "message": "include_folders and include_files cannot both be false",
+    }
+
+
 def test_extract_metadata_matches_open_dma_tool_value_semantics() -> None:
     tool_spec = RecordingOpenDMAToolSpec()
     created_at = datetime(2026, 8, 24, 12, 30, tzinfo=timezone.utc)
@@ -317,6 +364,30 @@ def test_search_delegates_to_query_builder_and_runner() -> None:
             "search_result_limit": 7,
         }
     ]
+
+
+def test_function_tool_call_returns_input_error_instead_of_raising() -> None:
+    tool_spec = RecordingOpenDMAToolSpec()
+    tools_by_name = {tool.metadata.name: tool for tool in tool_spec.to_tool_list()}
+
+    missing_output = tools_by_name["opendma_get_metadata"].call()
+    unexpected_output = tools_by_name["opendma_get_metadata"].call(
+        object_id="spec",
+        unknown="value",
+    )
+
+    assert missing_output.raw_output == {
+        "error": True,
+        "tool": "opendma_get_metadata",
+        "error_type": "ToolInputError",
+        "message": "Missing required string parameter(s): object_id.",
+    }
+    assert unexpected_output.raw_output == {
+        "error": True,
+        "tool": "opendma_get_metadata",
+        "error_type": "ToolInputError",
+        "message": ("Unexpected parameter(s): unknown. Allowed parameters: object_id."),
+    }
 
 
 def test_search_result_limit_must_be_positive() -> None:
