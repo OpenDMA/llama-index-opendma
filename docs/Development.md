@@ -28,6 +28,7 @@ This repository is a uv workspace containing multiple publishable packages:
 
 - `packages/llama-index-readers-opendma`: reader integration
 - `packages/llama-index-retrievers-opendma`: retriever integration
+- `packages/llama-index-tools-opendma`: tools integration
 
 ## Common Commands
 
@@ -38,6 +39,7 @@ uv run pytest
 uv run pytest packages/llama-index-readers-opendma/tests/unit
 uv run pytest packages/llama-index-readers-opendma/tests/integration
 uv run pytest packages/llama-index-retrievers-opendma/tests/unit
+uv run pytest packages/llama-index-tools-opendma/tests/unit
 ```
 
 Run integration tests against the tutorial repository:
@@ -63,8 +65,10 @@ uv run ruff check .
 uv run ruff format .
 uv run --package llama-index-readers-opendma mypy -p llama_index.readers.opendma
 uv run --package llama-index-retrievers-opendma mypy -p llama_index.retrievers.opendma
+uv run --package llama-index-tools-opendma mypy -p llama_index.tools.opendma
 uv run --package llama-index-readers-opendma mypy --explicit-package-bases packages/llama-index-readers-opendma/tests
 uv run --package llama-index-retrievers-opendma mypy --explicit-package-bases packages/llama-index-retrievers-opendma/tests
+uv run --package llama-index-tools-opendma mypy --explicit-package-bases packages/llama-index-tools-opendma/tests
 ```
 
 Build all packages:
@@ -81,6 +85,8 @@ uv build --all-packages
   OpenDMA tutorial repository.
 - `packages/llama-index-retrievers-opendma/tests/unit`: in-process tests for
   retriever validation and query generation.
+- `packages/llama-index-tools-opendma/tests/unit`: in-process tests for
+  tools.
 - `docs/examples`: runnable examples, not part of the automated test suite.
 
 ## Release
@@ -94,9 +100,10 @@ uv run pytest
 uv run ruff check .
 uv run --package llama-index-readers-opendma mypy -p llama_index.readers.opendma
 uv run --package llama-index-retrievers-opendma mypy -p llama_index.retrievers.opendma
+uv run --package llama-index-tools-opendma mypy -p llama_index.tools.opendma
 uv build --all-packages
-git tag 0.1.0
-git push origin 0.1.0
+git tag X.Y.Z
+git push origin X.Y.Z
 uv publish
 ```
 
@@ -105,20 +112,25 @@ Published versions live in:
 
 - `packages/llama-index-readers-opendma/pyproject.toml`
 - `packages/llama-index-retrievers-opendma/pyproject.toml`
+- `packages/llama-index-tools-opendma/pyproject.toml`
 
 If your `uv` version supports package-scoped version changes, you can use:
 
 ```bash
 # remove .dev before building a release
+uv version --bump stable
 uv version --package llama-index-readers-opendma --bump stable
 uv version --package llama-index-retrievers-opendma --bump stable
+uv version --package llama-index-tools-opendma --bump stable
 # bump to next minor/major and add .dev
+uv version --bump minor --bump dev
 uv version --package llama-index-readers-opendma --bump minor --bump dev
 uv version --package llama-index-retrievers-opendma --bump minor --bump dev
+uv version --package llama-index-tools-opendma --bump minor --bump dev
 ```
 
 Make sure to manually update `__version__` in `packages/*/src/__init__.py` as
-it is not touched by `uv  version --bump`.
+it is not touched by `uv version --bump`.
 
 Double check that the dependency on `llama-index-readers-opendma` in
 `llama-index-retrievers-opendma` and `llama-index-tools-opendma` is updated
