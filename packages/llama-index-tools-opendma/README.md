@@ -5,10 +5,9 @@ LlamaIndex tools for [OpenDMA](https://opendma.org/).
 OpenDMA is a vendor-neutral abstraction layer for enterprise content management
 systems. It provides a common API for repositories such as Alfresco, CMOD,
 Documentum, FileNet P8, OnBase, SharePoint, and other ECM or document management
-platforms. This project connects that API to LlamaIndex by loading OpenDMA
-documents as `llama_index.core.schema.Document` objects.
+platforms.
 
-This package provides a convenient list of Tools allowing agentic applications
+This package provides a convenient ToolSpec allowing agentic applications
 to browse through complex repository layouts to retrieve information.
 
 ## Installation

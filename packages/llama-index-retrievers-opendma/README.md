@@ -5,8 +5,7 @@ LlamaIndex retriever integration for [OpenDMA](https://opendma.org/).
 OpenDMA is a vendor-neutral abstraction layer for enterprise content management
 systems. It provides a common API for repositories such as Alfresco, CMOD,
 Documentum, FileNet P8, OnBase, SharePoint, and other ECM or document management
-platforms. This project connects that API to LlamaIndex by loading OpenDMA
-documents as `llama_index.core.schema.Document` objects.
+platforms.
 
 This package retrieves content from ECM and document management repositories
 exposed through OpenDMA and returns LlamaIndex `NodeWithScore` objects.
