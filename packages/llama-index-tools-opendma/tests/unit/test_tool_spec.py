@@ -492,6 +492,7 @@ class TestOpenDMAToolSpec:
             in tools_by_name["opendma_get_metadata"].metadata.get_parameters_dict()["properties"]
         )
         list_children_schema = tools_by_name["opendma_list_children"].metadata.fn_schema
+        assert list_children_schema is not None
         with pytest.raises(ValueError, match="include_folders and include_files"):
             list_children_schema(
                 object_id="folder",
@@ -1346,6 +1347,7 @@ class TestOnBaseToolSpec:
         result = tool_spec.opendma_search(full_text="<test foo bar")
 
         assert "error" not in result
+        assert session.query is not None
         assert (
             "<FullTextSearchString>&lt;test OR foo OR bar</FullTextSearchString>" in session.query
         )

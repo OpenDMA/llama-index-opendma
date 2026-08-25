@@ -135,7 +135,7 @@ class OpenDMAReader(BaseReader):
         metadata_fn: Callable[[Any], dict[str, Any]] | None = None,
         _allow_no_source: bool = False,
     ) -> None:
-        """Initialize the OpenDMA reader.
+        """Initialise the OpenDMA reader.
 
         Args:
             endpoint: OpenDMA REST service endpoint.
@@ -579,7 +579,7 @@ class AlfrescoReader(OpenDMAReader):
         raise_on_error: bool = False,
         metadata_fn: Callable[[Any], dict[str, Any]] | None = None,
     ) -> None:
-        """Initialize the Alfresco reader.
+        """Initialise the Alfresco reader.
 
         Args:
             endpoint: OpenDMA REST service endpoint.

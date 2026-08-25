@@ -42,7 +42,7 @@ class OpenDMARetriever(BaseRetriever):
         objects: list[Any] | None = None,
         verbose: bool = False,
     ) -> None:
-        """Initialize the OpenDMA retriever."""
+        """Initialise the OpenDMA retriever."""
         if similarity_top_k is not None and similarity_top_k <= 0:
             raise ValueError("similarity_top_k must be greater than 0")
 
@@ -171,7 +171,7 @@ class AlfrescoRetriever(OpenDMARetriever):
         objects: list[Any] | None = None,
         verbose: bool = False,
     ) -> None:
-        """Initialize the Alfresco retriever."""
+        """Initialise the Alfresco retriever."""
         if sites is not None:
             for site in sites:
                 AlfrescoReader._validate_site_name(site)
@@ -238,7 +238,7 @@ class FileNetP8Retriever(OpenDMARetriever):
         objects: list[Any] | None = None,
         verbose: bool = False,
     ) -> None:
-        """Initialize the FileNet P8 retriever."""
+        """Initialise the FileNet P8 retriever."""
         super().__init__(
             endpoint=endpoint,
             username=username,
@@ -308,7 +308,7 @@ class DocumentumRetriever(OpenDMARetriever):
         objects: list[Any] | None = None,
         verbose: bool = False,
     ) -> None:
-        """Initialize the Documentum retriever."""
+        """Initialise the Documentum retriever."""
         super().__init__(
             endpoint=endpoint,
             username=username,
@@ -366,7 +366,7 @@ class OnBaseRetriever(OpenDMARetriever):
         objects: list[Any] | None = None,
         verbose: bool = False,
     ) -> None:
-        """Initialize the OnBase retriever."""
+        """Initialise the OnBase retriever."""
         super().__init__(
             endpoint=endpoint,
             username=username,
