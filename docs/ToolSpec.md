@@ -58,7 +58,7 @@ parameters:
 - `read_chunk_page_size`: Number of chunks to be returned in a single tool call. Default `3`.
 - `read_text_cache_enabled`: Enable chunk caching. Default `True`.
 - `read_text_cache_max_objects`: Cache size in number of documents. Default `32`.
-- `read_text_cache_ttl_seconds`: Duration in seconds after which documents in cache are re-read. Default 6hrs `21600`.
+- `read_text_cache_ttl_seconds`: Duration in seconds after which documents in cache are re-read. Default 6 hours `21600`.
 
 ## Tools
 

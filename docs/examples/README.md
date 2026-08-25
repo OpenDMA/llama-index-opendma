@@ -24,7 +24,7 @@ Verify the service at:
 http://localhost:8080/opendma
 ```
 
-These examples demonstrate the basic usage of the Document Loader with sample
+These examples demonstrate the basic usage of the Document Reader with sample
 content from this tutorial repository.
 
 Features of the Tutorial XML Repository are limited, but it allows us to
@@ -119,7 +119,7 @@ docker compose up -d
 After the service is running:
 
 1. Open the web UI at `http://localhost:7070`.
-2. Initialize the admin account.
+2. Initialise the admin account.
 3. Accept the license agreement.
 4. Install a free-of-charge license key.
 5. Navigate to "Admin" > "Connections".

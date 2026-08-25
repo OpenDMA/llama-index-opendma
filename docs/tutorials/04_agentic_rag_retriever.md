@@ -1,7 +1,7 @@
 # Agentic RAG using OpenDMA Retriever
 
 The previous tutorials all use a semantic search in a vector store. This
-requires ingesting all content in advance, extract text, chunk it, calculate
+requires ingesting all content in advance, extracting text, chunk it, calculate
 embeddings and store it in a vector store.
 
 A vector store often provides better retrieval results. The original question from

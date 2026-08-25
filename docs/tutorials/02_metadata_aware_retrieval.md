@@ -63,7 +63,7 @@ docker compose up -d
 After the service is running:
 
 1. Open the web UI at `http://localhost:7070`.
-2. Initialize the admin account.
+2. Initialise the admin account.
 3. Accept the license agreement.
 4. Install a free-of-charge license key.
 5. Navigate to "Admin" > "Connections".
@@ -438,7 +438,7 @@ Path: /Company Home/Sites/engineering/documentLibrary
 --------------------------------------------------------------------------------
 ```
 
-This metadata is perserved on the nodes when these documents are inserted into
+This metadata is preserved on the nodes when these documents are inserted into
 the index. We can use this information to guide the retrieval process and
 ultimately get better results. This is achieved by adding an additional query
 analysis step in front of the retrieval.
