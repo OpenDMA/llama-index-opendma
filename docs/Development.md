@@ -121,7 +121,8 @@ Make sure to manually update `__version__` in `packages/*/src/__init__.py` as
 it is not touched by `uv  version --bump`.
 
 Double check that the dependency on `llama-index-readers-opendma` in
-`llama-index-tools-opendma` is updated to match the new version.
+`llama-index-retrievers-opendma` and `llama-index-tools-opendma` is updated
+to match the new version.
 
 Otherwise, edit the package `pyproject.toml` files directly.
 
