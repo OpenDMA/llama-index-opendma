@@ -8,6 +8,8 @@ from llama_index.tools.opendma.base import (
     OpenDMAToolSpec,
 )
 
+__version__ = "0.2.0"
+
 __all__ = [
     "AlfrescoToolSpec",
     "DocumentumToolSpec",

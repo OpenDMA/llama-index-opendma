@@ -1,6 +1,6 @@
 [project]
 name = "llama-index-retrievers-opendma"
-version = "0.2.0.dev1"
+version = "0.2.0"
 description = "LlamaIndex retrievers for OpenDMA - retrieve ECM content with LlamaIndex"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -11,7 +11,7 @@ authors = [
 requires-python = ">=3.10,<4"
 dependencies = [
     "llama-index-core>=0.14.0,<0.15.0",
-    "llama-index-readers-opendma>=0.1.0.dev1",
+    "llama-index-readers-opendma>=0.2.0",
 ]
 keywords = ["llama-index", "opendma", "ecm", "retrievers", "document-management"]
 classifiers = [
