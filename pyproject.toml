@@ -62,7 +62,7 @@ testpaths = [
 ]
 addopts = "--cov=llama_index.readers.opendma --cov=llama_index.retrievers.opendma --cov=llama_index.tools.opendma --cov-report=term-missing"
 markers = [
-    "integration: tests requiring an external OpenDMA tutorial repository and an Alfresco deployment",
+    "integration: tests requiring an external OpenDMA tutorial repository",
 ]
 
 [tool.coverage.run]
