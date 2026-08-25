@@ -38,9 +38,6 @@ reader = OpenDMAReader(
     password="ignored",
     repository_id="sample-repo",
     document_ids=["opendma-spec-document"],
-    file_extractor_per_mimetype={
-        "application/pdf": PDFReader(),
-    },
 )
 
 # Load documents
