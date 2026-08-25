@@ -95,6 +95,7 @@ Prepare and publish a release. Each package has its own version in its package
 `pyproject.toml`; update every package being released before building.
 
 ```bash
+OPENDMA_TUTORIAL_ENDPOINT=http://localhost:8080/opendma
 uv sync --all-packages --dev
 uv run pytest
 uv run ruff check .
